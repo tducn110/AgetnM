@@ -21,6 +21,7 @@ from core.adapters import (
     PersistentAgySessionAdapter, AgyNativeAdapter, CodexNativeAdapter, ShellNativeAdapter
 )
 from core.orchestrator import MultiAgentMeshOrchestrator
+from core.user import UserManager, UserRole
 
 PORT = 8420
 STATE_FILE = "/home/pro/.config/agent-mesh/app_state.json"
@@ -44,8 +45,16 @@ def broadcast_sse(event_type, payload):
 
 # Initialize Global Orchestrator with SSE Broadcasting
 orchestrator = MultiAgentMeshOrchestrator(sse_broadcast_fn=broadcast_sse)
+user_manager = UserManager()
 
 class MeshRequestHandler(BaseHTTPRequestHandler):
+    def get_authenticated_user(self):
+        auth_header = self.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
+            return user_manager.verify_token(token)
+        return None
+
     def send_cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
@@ -101,6 +110,20 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
             since_seq = int(query.get("since_seq", [0])[0])
             events = orchestrator.harness_event_store.get_events(session_id, since_seq=since_seq)
             self.respond_json({"success": True, "session_id": session_id, "events": [e.to_dict() for e in events]})
+        elif path == "/api/auth/me":
+            user = self.get_authenticated_user()
+            if not user:
+                self.respond_json({"success": False, "error": "Unauthorized: Invalid or missing token"}, status=401)
+            else:
+                self.respond_json({"success": True, "user": user.to_dict(safe=True)})
+        elif path == "/api/users":
+            user = self.get_authenticated_user()
+            if not user:
+                self.respond_json({"success": False, "error": "Unauthorized: Authentication required"}, status=401)
+            elif user.role not in [UserRole.ADMIN.value, UserRole.OPERATOR.value]:
+                self.respond_json({"success": False, "error": "Forbidden: Requires Admin or Operator role"}, status=403)
+            else:
+                self.respond_json({"success": True, "users": user_manager.list_users()})
         else:
             self.send_error(404, "Not Found")
 
@@ -171,6 +194,54 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
             proj = orchestrator.harness_event_store.replay_session(session_id)
             import dataclasses
             self.respond_json({"success": True, "state": dataclasses.asdict(proj)})
+        elif path == "/api/auth/register":
+            username = payload.get("username", "")
+            email = payload.get("email", "")
+            password = payload.get("password", "")
+            role = payload.get("role", UserRole.VIEWER.value)
+            try:
+                new_user = user_manager.register_user(username, email, password, role)
+                session = user_manager.authenticate(username, password)
+                self.respond_json({
+                    "success": True,
+                    "user": new_user.to_dict(safe=True),
+                    "token": session.token if session else None
+                }, status=201)
+            except ValueError as e:
+                self.respond_json({"success": False, "error": str(e)}, status=400)
+        elif path == "/api/auth/login":
+            username_or_email = payload.get("username") or payload.get("email") or ""
+            password = payload.get("password", "")
+            session = user_manager.authenticate(username_or_email, password)
+            if not session:
+                self.respond_json({"success": False, "error": "Invalid credentials or account suspended"}, status=401)
+            else:
+                user = user_manager.get_user(session.user_id)
+                self.respond_json({
+                    "success": True,
+                    "token": session.token,
+                    "expires_at": session.expires_at,
+                    "user": user.to_dict(safe=True) if user else {}
+                })
+        elif path == "/api/users/update":
+            user = self.get_authenticated_user()
+            if not user or user.role != UserRole.ADMIN.value:
+                self.respond_json({"success": False, "error": "Forbidden: Admin privileges required"}, status=403)
+            else:
+                target_id = payload.get("user_id")
+                try:
+                    updated = user_manager.update_user(target_id, payload.get("updates", {}))
+                    self.respond_json({"success": True, "user": updated.to_dict(safe=True)})
+                except ValueError as e:
+                    self.respond_json({"success": False, "error": str(e)}, status=400)
+        elif path == "/api/users/delete":
+            user = self.get_authenticated_user()
+            if not user or user.role != UserRole.ADMIN.value:
+                self.respond_json({"success": False, "error": "Forbidden: Admin privileges required"}, status=403)
+            else:
+                target_id = payload.get("user_id")
+                ok = user_manager.delete_user(target_id)
+                self.respond_json({"success": ok, "message": f"User {target_id} deleted" if ok else "User not found"})
         else:
             self.send_error(404, "Not Found")
 
