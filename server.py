@@ -17,7 +17,9 @@ from urllib.parse import urlparse, parse_qs
 
 # Import Core Architecture Components
 from core.lifecycle import AgentState, LifecycleEventType, create_wire_envelope
-from core.adapters import AgyNativeAdapter, CodexNativeAdapter, ShellNativeAdapter
+from core.adapters import (
+    PersistentAgySessionAdapter, AgyNativeAdapter, CodexNativeAdapter, ShellNativeAdapter
+)
 from core.orchestrator import MultiAgentMeshOrchestrator
 
 PORT = 8420
@@ -81,6 +83,24 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
                 "registry": orchestrator.registry.records,
                 "default_evaluation": orchestrator.eval_gate.evaluate_task_route("coding.frontend.react", ["react", "typescript"])
             })
+        elif path == "/api/skills":
+            skills_dict = {
+                sid: {
+                    "skill_id": s.skill_id,
+                    "name": s.name,
+                    "description": s.description,
+                    "triggers": s.triggers,
+                    "required_tools": s.required_tools
+                }
+                for sid, s in orchestrator.harness_skill_registry.skills.items()
+            }
+            self.respond_json({"success": True, "skills": skills_dict})
+        elif path == "/api/session_events":
+            query = parse_qs(parsed.query)
+            session_id = query.get("session_id", [""])[0]
+            since_seq = int(query.get("since_seq", [0])[0])
+            events = orchestrator.harness_event_store.get_events(session_id, since_seq=since_seq)
+            self.respond_json({"success": True, "session_id": session_id, "events": [e.to_dict() for e in events]})
         else:
             self.send_error(404, "Not Found")
 
@@ -146,6 +166,11 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
             mode = payload.get("mode", "MANAGED_SESSION")
             ok = orchestrator.switch_execution_mode(pane_id, mode)
             self.respond_json({"success": ok, "mode": mode})
+        elif path == "/api/replay_session":
+            session_id = payload.get("session_id", "")
+            proj = orchestrator.harness_event_store.replay_session(session_id)
+            import dataclasses
+            self.respond_json({"success": True, "state": dataclasses.asdict(proj)})
         else:
             self.send_error(404, "Not Found")
 
@@ -329,10 +354,32 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
 
         if kind == "agy":
             model = "Gemini 3.8 Flash (High)"
-            adapter = AgyNativeAdapter(new_pane_id, "agy", role, model)
+            adapter = PersistentAgySessionAdapter(new_pane_id, "agy", role, model)
         elif kind == "codex":
             model = "gpt-5.6-luna (v0.155.0)"
             adapter = CodexNativeAdapter(new_pane_id, "codex", role, model)
+        elif kind == "harness":
+            model = "HarnessNative (DSH-Style)"
+            is_impl = ("implementer" in role.lower() or "worker" in role.lower())
+            worktree_dir = "/home/pro/Downloads/agent-mesh/.agentmesh/worktrees/impl-a" if is_impl else "/home/pro/Downloads/agent-mesh"
+            from core.harness import ExecutionScope, HarnessNativeAdapter
+            scope = ExecutionScope(
+                agent_id=new_pane_id,
+                role=role,
+                allowed_tools={"fs.read_file", "fs.write_file", "shell.execute"} if is_impl else {"fs.read_file", "mesh.read_spec"},
+                allowed_paths=[worktree_dir] if is_impl else ["/home/pro/Downloads/agent-mesh"],
+                read_only=(not is_impl)
+            )
+            adapter = HarnessNativeAdapter(
+                agent_id=new_pane_id,
+                name=f"harness-{role.lower().replace(' ', '-')}",
+                role=role,
+                scope=scope,
+                tool_registry=orchestrator.harness_tool_registry,
+                context_assembler=orchestrator.harness_context_assembler,
+                event_store=orchestrator.harness_event_store,
+                workspace_dir=worktree_dir
+            )
         else:
             model = "Subprocess Shell"
             adapter = ShellNativeAdapter(new_pane_id, kind, role, model)

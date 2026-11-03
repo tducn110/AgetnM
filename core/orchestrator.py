@@ -22,6 +22,15 @@ from .lifecycle import (
 from .adapters import (
     BaseAgentAdapter, PersistentAgySessionAdapter, CodexNativeAdapter, ShellNativeAdapter
 )
+from .harness import (
+    ServiceDefinition, CapabilityProvider, ConsumerToolSchema,
+    SandboxedFsProvider, SandboxedShellProvider,
+    ExecutionScope, ScopedToolRegistry, ToolScopeSecurityViolation,
+    SessionEvent, RuntimeEventStore, ProjectedSessionState,
+    SkillMetadata, SkillRegistry,
+    ContextAssembler, AssembledContext,
+    HarnessAgentLoop, ModelClient, DeterministicModelClient, HarnessNativeAdapter
+)
 
 STATE_FILE = "/home/pro/.config/agent-mesh/app_state.json"
 REGISTRY_FILE = "/home/pro/.config/agent-mesh/capability_registry.json"
@@ -279,6 +288,16 @@ class MultiAgentMeshOrchestrator:
         os.makedirs(impl_a_dir, exist_ok=True)
         os.makedirs(impl_b_dir, exist_ok=True)
 
+        # Initialize Harness Runtime Subsystem (H01-H07)
+        self.harness_tool_registry = ScopedToolRegistry()
+        self.harness_skill_registry = SkillRegistry()
+        self.harness_event_store = RuntimeEventStore()
+        self.harness_context_assembler = ContextAssembler(
+            tool_registry=self.harness_tool_registry,
+            skill_registry=self.harness_skill_registry
+        )
+        self._init_harness_capability_seams(worktree_base, impl_a_dir, impl_b_dir)
+
         # Initialize the 6 Canonical Terminal Slots (FR-CLI-01)
         self.adapters: Dict[str, BaseAgentAdapter] = {
             # Slot 1: Goal Analyst (Restricted / Proxy)
@@ -334,6 +353,70 @@ class MultiAgentMeshOrchestrator:
         # Active Goal & Task DAG Store
         self.current_goal: Optional[Dict[str, Any]] = None
         self.active_tasks: Dict[str, Dict[str, Any]] = {}
+
+    def _init_harness_capability_seams(self, worktree_base: str, impl_a_dir: str, impl_b_dir: str):
+        """Initializes H01 Capability Seams and registers standard scoped tools."""
+        fs_provider = SandboxedFsProvider(root_dir="/home/pro/Downloads/agent-mesh")
+
+        # Seam: fs.read_file
+        self.harness_tool_registry.register_tool(ConsumerToolSchema(
+            tool_name="fs.read_file",
+            service_id="service.fs",
+            description="Read content of a file within permitted workspace paths.",
+            parameters_schema={
+                "type": "object",
+                "properties": {"path": {"type": "string", "description": "Relative or absolute path to read"}},
+                "required": ["path"]
+            },
+            handler_fn=fs_provider.read_file
+        ))
+
+        # Seam: fs.write_file
+        self.harness_tool_registry.register_tool(ConsumerToolSchema(
+            tool_name="fs.write_file",
+            service_id="service.fs",
+            description="Write or overwrite a file within authorized workspace boundary.",
+            parameters_schema={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Target file path"},
+                    "content": {"type": "string", "description": "File contents to write"}
+                },
+                "required": ["path", "content"]
+            },
+            handler_fn=fs_provider.write_file
+        ))
+
+        # Seam: shell.execute
+        shell_provider = SandboxedShellProvider(allowed_cwd="/home/pro/Downloads/agent-mesh")
+        self.harness_tool_registry.register_tool(ConsumerToolSchema(
+            tool_name="shell.execute",
+            service_id="service.shell",
+            description="Execute safe shell command or test suite within workspace boundary.",
+            parameters_schema={
+                "type": "object",
+                "properties": {"command": {"type": "string", "description": "Shell command to run"}},
+                "required": ["command"]
+            },
+            handler_fn=shell_provider.execute
+        ))
+
+        # Seam: mesh.read_spec
+        def read_spec_handler(spec_type: str = "goal"):
+            state = self.load_state()
+            return {"spec_type": spec_type, "wires": state.get("wires", []), "status": "active"}
+
+        self.harness_tool_registry.register_tool(ConsumerToolSchema(
+            tool_name="mesh.read_spec",
+            service_id="service.mesh",
+            description="Query the orchestrator for current GoalSpec, TaskSpec, or Wire DAG details.",
+            parameters_schema={
+                "type": "object",
+                "properties": {"spec_type": {"type": "string", "enum": ["goal", "plan", "task"]}},
+                "required": ["spec_type"]
+            },
+            handler_fn=read_spec_handler
+        ))
 
     def on_stream_delta(self, agent_id: str, delta: str):
         with self.lock:
@@ -469,6 +552,22 @@ class MultiAgentMeshOrchestrator:
             prompt,
             delta_callback=self.on_stream_delta,
             event_callback=self.on_lifecycle_event
+        )
+
+        # H04: Append to Event-Sourced Session Store
+        self.harness_event_store.append_event(
+            session_id=f"sess_{agent_id.replace(':', '_')}",
+            agent_id=agent_id,
+            turn_id=result.turn_id,
+            event_type="TURN_COMPLETED" if result.success else "TURN_FAILED",
+            payload={
+                "prompt": prompt,
+                "output": result.output,
+                "duration": result.duration,
+                "artifacts": result.artifacts,
+                "usage": result.usage,
+                "success": result.success
+            }
         )
 
         with self.lock:

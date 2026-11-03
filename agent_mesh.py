@@ -270,11 +270,22 @@ def main():
 
     # Spawn command
     spawn_parser = subparsers.add_parser("spawn", help="Spawn a new agent pane")
-    spawn_parser.add_argument("kind", choices=["agy", "codex", "shell"], default="agy")
+    spawn_parser.add_argument("kind", choices=["agy", "codex", "shell", "harness"], default="agy")
     spawn_parser.add_argument("--role", default="Worker", help="Assigned role")
 
     # Wires command
     subparsers.add_parser("wires", help="List all configured wires")
+
+    # Skills command (H06)
+    subparsers.add_parser("skills", help="List discovered skills from Harness SkillRegistry")
+
+    # Events command (H04)
+    events_parser = subparsers.add_parser("events", help="Query append-only session events")
+    events_parser.add_argument("session_id", help="Target session ID")
+
+    # Replay command (H04)
+    replay_parser = subparsers.add_parser("replay", help="Replay session from event log")
+    replay_parser.add_argument("session_id", help="Target session ID")
 
     args = parser.parse_args()
 
@@ -338,6 +349,15 @@ def main():
         print(json.dumps(res, indent=2))
     elif args.command == "wires":
         res = api_get("/api/wires")
+        print(json.dumps(res, indent=2))
+    elif args.command == "skills":
+        res = api_get("/api/skills")
+        print(json.dumps(res, indent=2))
+    elif args.command == "events":
+        res = api_get(f"/api/session_events?session_id={args.session_id}")
+        print(json.dumps(res, indent=2))
+    elif args.command == "replay":
+        res = api_post("/api/replay_session", {"session_id": args.session_id})
         print(json.dumps(res, indent=2))
 
 

@@ -317,4 +317,53 @@
 ### 5. Automated E2E Regression Suite
 - Created `tests/test_mesh_e2e.py` covering all 6 core governance mechanisms. Ran and verified: `ALL 6 END-TO-END VERIFICATION CHECKS PASSED`.
 
+---
+
+## [2026-11-03 v2.2.0] DeepSeek Harness (DSH) Architecture: Capability Seams, Event Sourcing & Dual Runtimes (H01–H07)
+
+### 1. Harness Architectural Baseline (`docs/HARNESS_SPEC.md`)
+- Formally baselined requirement group `Harness Runtime` (H01–H07) modeled after DeepSeek Harness (DSH) and Cordis capability seams.
+- Established strict **Dual-Runtime Architecture** separating CLI-Native Runtimes (`agy`, `codex`, `shell`) from Harness-Native Runtimes (Mesh-owned `Model → Tool → Model` loop) under a unified Control Plane.
+
+### 2. Implementation of H01–H07 Mechanisms (`core/harness/`)
+- **H01: Plugin & Capability Seams (`core/harness/seam.py`):**
+  - Decoupled `ServiceDefinition` (abstract contract), `CapabilityProvider` (`SandboxedFsProvider`, `SandboxedShellProvider`), and `ConsumerToolSchema` (LLM JSON schema).
+  - Providers can be swapped for Docker, chroot, or remote sandbox without modifying system prompts or orchestrator loops.
+- **H02: Agent Loop & Turn Lifecycle (`core/harness/loop.py`):**
+  - Implemented `HarnessAgentLoop` executing the deterministic turn sequence: `Prompt → Model Call → Tool Call → Scoped Execution → Tool Result → Model Follow-up → Artifact → Turn Completion`.
+  - Integrated `HarnessNativeAdapter` bridging into Agent Mesh orchestrator and slot topology.
+- **H03: Scoped Tool Execution & Worktree Boundary (`core/harness/tools.py`):**
+  - Built `ExecutionScope` enforcing strict tool whitelisting (`allowed_tools`) and path boundary containment (`allowed_paths`) at tool invocation time.
+  - Aborts unauthorized tool calls or directory traversals with `ToolScopeSecurityViolation`.
+- **H04: Event-Sourced Session Store (`core/harness/events.py`):**
+  - Append-only NDJSON event storage at `~/.config/agent-mesh/sessions/<session_id>/events.jsonl` with monotonic sequence numbers.
+  - State projection (`ProjectedSessionState`) folds over events to reconstruct turn history, tool execution results, and token usage without state drift.
+- **H05: Prompt & Context Assembler (`core/harness/context.py`):**
+  - Dynamically builds scoped system prompts, security constraints, workspace tree schemas, active tool declarations, and skill instructions per agent scope.
+- **H06: Skill Registry & Lazy Loader (`core/harness/skills.py`):**
+  - Discovers `SKILL.md` bundles across `.agentmesh/skills` and `~/.gemini/skills`.
+  - Parses YAML frontmatter and evaluates `check_skill_permission()` against the target agent's `ExecutionScope` to prevent privilege escalation through skills.
+- **H07: Token Metering & Compaction:**
+  - Tracks granular input, output, and tool output tokens per turn; persists token deltas into session events.
+
+### 3. Orchestrator & CLI Integration
+- **`core/orchestrator.py`:**
+  - Integrated `ScopedToolRegistry`, `SkillRegistry`, `RuntimeEventStore`, and `ContextAssembler`.
+  - Registered standard core seams: `fs.read_file`, `fs.write_file`, `shell.execute`, and `mesh.read_spec`.
+  - Persists all turn completions directly to append-only session events.
+- **`server.py`:**
+  - Added REST endpoints: `GET /api/skills`, `GET /api/session_events`, and `POST /api/replay_session`.
+  - Extended `/api/spawn` to support `kind="harness"` with automatic `ExecutionScope` configuration.
+- **`agent_mesh.py`:**
+  - Added CLI subcommands: `skills`, `events`, `replay`, and added `"harness"` choice to `spawn`.
+
+### 4. Harness Acceptance Suite (`tests/test_harness_acceptance.py`)
+- Verified all 5 core harness requirements:
+  - `Check 1`: Planner Tool Scope Isolation — Write tools are hidden from LLM schema and blocked with `ToolScopeSecurityViolation` (PASS).
+  - `Check 2`: Executor Worktree Boundary — Writes within worktree succeed; writes outside or parent traversals are blocked (PASS).
+  - `Check 3`: Skill Registry & Privilege Escalation Gate — Skills demanding unauthorized tools are rejected (PASS).
+  - `Check 4`: Event-Sourced Session Store & Replay — Monotonic event log reconstructed identical state across session replay (PASS).
+  - `Check 5`: End-to-End Pipeline Acceptance — Full flow from Goal → Plan → Skill → Tool Execution → Artifact → Independent Verification confirmed (PASS).
+
+
 

@@ -183,32 +183,33 @@ class PersistentAgySessionAdapter(BaseAgentAdapter):
         delta_callback: Optional[Callable[[str, str], None]] = None,
         event_callback: Optional[Callable[[AgentLifecycleEvent], None]] = None
     ) -> TurnResult:
+        turn_id = f"agy_{int(time.time() * 1000) % 1000000}"
+
+        # Tool Proxy Sandbox RBAC Guard for Restricted Agents (Pre-flight intercept)
+        is_restricted = (self.permission_policy.get("role") == "restricted" or not self.permission_policy.get("fs_write", False))
+        if is_restricted:
+            p_lower = prompt.lower()
+            write_signals = ["write ", "touch ", "rm ", "delete file", "create file", "overwrite", "> /", "modify file"]
+            is_write = any(sig in p_lower for sig in write_signals)
+            is_outside = any(p in prompt for p in ["/tmp", "/etc", "/var", "/root", "outside"])
+            if is_write and is_outside:
+                err_msg = f"Security Exception: Action rejected by ToolProxySandbox RBAC Guard. Agent [{self.agent_id} {self.name}] does not possess fs_write permissions outside workspace."
+                self.state = AgentState.FAILED
+                if event_callback:
+                    event_callback(AgentLifecycleEvent(LifecycleEventType.TURN_FAILED, self.agent_id, turn_id, {"error": err_msg, "duration": 0.0}))
+                res_obj = TurnResult(self.agent_id, turn_id, False, err_msg, [], {}, 0.0)
+                self.turn_history.append(res_obj)
+                self.state = AgentState.IDLE
+                return res_obj
+
         with self._lock:
             # Ensure process is alive
             if not self.proc or self.proc.poll() is not None:
                 if not self.start():
                     return TurnResult(self.agent_id, "err", False, "Failed to start AGY persistent process", duration=0.0)
 
-            turn_id = f"agy_{int(time.time() * 1000) % 1000000}"
             self.current_turn_id = turn_id
             self.state = AgentState.TURN_RUNNING
-
-            # Tool Proxy Sandbox RBAC Guard for Restricted Agents
-            is_restricted = (self.permission_policy.get("role") == "restricted" or not self.permission_policy.get("fs_write", False))
-            if is_restricted:
-                p_lower = prompt.lower()
-                write_signals = ["write ", "touch ", "rm ", "delete file", "create file", "overwrite", "> /", "modify file"]
-                is_write = any(sig in p_lower for sig in write_signals)
-                is_outside = any(p in prompt for p in ["/tmp", "/etc", "/var", "/root", "outside"])
-                if is_write and is_outside:
-                    err_msg = f"Security Exception: Action rejected by ToolProxySandbox RBAC Guard. Agent [{self.agent_id} {self.name}] does not possess fs_write permissions outside workspace."
-                    self.state = AgentState.FAILED
-                    if event_callback:
-                        event_callback(AgentLifecycleEvent(LifecycleEventType.TURN_FAILED, self.agent_id, turn_id, {"error": err_msg, "duration": 0.0}))
-                    res_obj = TurnResult(self.agent_id, turn_id, False, err_msg, [], {}, 0.0)
-                    self.turn_history.append(res_obj)
-                    self.state = AgentState.IDLE
-                    return res_obj
 
             effective_prompt = prompt
             if self.system_prompt and not self.turn_history:
@@ -357,6 +358,7 @@ AgyNativeAdapter = PersistentAgySessionAdapter
 
 
 class CodexNativeAdapter(BaseAgentAdapter):
+
     """
     OpenAI Codex Native Adapter.
     Uses official `codex exec --json` with session continuation via `codex exec resume <thread_id>`.
