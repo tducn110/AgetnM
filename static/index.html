@@ -156,6 +156,12 @@
 
     <!-- Right Controls -->
     <div class="flex items-center space-x-3">
+      <!-- User Auth State Pill -->
+      <button id="btn-auth-action" onclick="handleAuthButtonClick()" class="px-3.5 py-1.5 bg-parchment hover:bg-periwinkle/30 text-lakeBlue hairline-border rounded-[100px] text-xs font-mono uppercase tracking-wider transition flex items-center space-x-1.5" title="User Account & Role">
+        <span>👤</span>
+        <span id="auth-label">Log In</span>
+      </button>
+
       <button onclick="triggerEmergencyStop()" class="px-3.5 py-1.5 bg-parchment hover:bg-coral/20 text-crimson hairline-border rounded-[100px] text-xs font-mono uppercase tracking-wider transition flex items-center space-x-1" title="Send Ctrl+C to all agents">
         <span>🛑</span>
         <span>Emergency Stop</span>
@@ -636,6 +642,119 @@
 
       <div class="pt-2 flex justify-end">
         <button onclick="closeGuideModal()" class="px-6 py-2 bg-lakeBlue text-parchment rounded-[100px] text-xs uppercase">Đã hiểu ▸</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. USER AUTHENTICATION MODAL (LOGIN / REGISTER) -->
+  <div id="auth-modal" class="hidden fixed inset-0 bg-ink/40 backdrop-blur-sm flex items-center justify-center z-50 p-6">
+    <div class="bg-parchment hairline-border rounded-[24px] w-full max-w-md p-6 shadow-2xl space-y-4 font-mono">
+      <div class="flex items-center justify-between pb-2 hairline-b">
+        <h3 class="serif-title text-2xl text-offBlack" id="auth-modal-title">AgentMesh Identity</h3>
+        <button onclick="closeAuthModal()" class="text-smoke hover:text-offBlack text-base">✕</button>
+      </div>
+
+      <!-- Tab Switcher -->
+      <div class="flex p-1 bg-ash/30 rounded-[100px] hairline-border text-xs">
+        <button id="auth-tab-login" onclick="switchAuthTab('login')" class="flex-1 py-1.5 rounded-[100px] bg-offBlack text-parchment font-mono transition">Sign In</button>
+        <button id="auth-tab-register" onclick="switchAuthTab('register')" class="flex-1 py-1.5 rounded-[100px] text-graphite hover:text-offBlack font-mono transition">Register</button>
+      </div>
+
+      <!-- Login Form -->
+      <form id="auth-login-form" onsubmit="handleLoginSubmit(event)" class="space-y-3 text-xs">
+        <div>
+          <label class="block text-[11px] text-smoke uppercase tracking-wider mb-1">Username or Email</label>
+          <input type="text" id="login-username" required placeholder="admin" class="w-full px-3 py-2 bg-parchment hairline-border rounded-[10px] text-offBlack focus:outline-none focus:border-lakeBlue">
+        </div>
+        <div>
+          <label class="block text-[11px] text-smoke uppercase tracking-wider mb-1">Password</label>
+          <input type="password" id="login-password" required placeholder="••••••••" class="w-full px-3 py-2 bg-parchment hairline-border rounded-[10px] text-offBlack focus:outline-none focus:border-lakeBlue">
+        </div>
+        <div id="login-error" class="hidden text-crimson text-[11px] p-2 bg-coral/10 rounded-[8px] hairline-border"></div>
+        <button type="submit" class="w-full py-2.5 bg-lakeBlue hover:opacity-90 text-parchment rounded-[100px] text-xs font-mono uppercase tracking-wider transition">Sign In ▸</button>
+      </form>
+
+      <!-- Register Form -->
+      <form id="auth-register-form" onsubmit="handleRegisterSubmit(event)" class="hidden space-y-3 text-xs">
+        <div>
+          <label class="block text-[11px] text-smoke uppercase tracking-wider mb-1">Username</label>
+          <input type="text" id="reg-username" required placeholder="developer_01" class="w-full px-3 py-2 bg-parchment hairline-border rounded-[10px] text-offBlack focus:outline-none focus:border-lakeBlue">
+        </div>
+        <div>
+          <label class="block text-[11px] text-smoke uppercase tracking-wider mb-1">Email</label>
+          <input type="email" id="reg-email" required placeholder="dev@agentmesh.local" class="w-full px-3 py-2 bg-parchment hairline-border rounded-[10px] text-offBlack focus:outline-none focus:border-lakeBlue">
+        </div>
+        <div>
+          <label class="block text-[11px] text-smoke uppercase tracking-wider mb-1">Password (min 8 chars)</label>
+          <input type="password" id="reg-password" minlength="8" required placeholder="••••••••" class="w-full px-3 py-2 bg-parchment hairline-border rounded-[10px] text-offBlack focus:outline-none focus:border-lakeBlue">
+        </div>
+        <div>
+          <label class="block text-[11px] text-smoke uppercase tracking-wider mb-1">Role</label>
+          <select id="reg-role" class="w-full px-3 py-2 bg-parchment hairline-border rounded-[10px] text-offBlack focus:outline-none focus:border-lakeBlue">
+            <option value="viewer">Viewer (Read-Only)</option>
+            <option value="operator">Operator (Execute & Verify)</option>
+            <option value="admin">Administrator (Full Control)</option>
+          </select>
+        </div>
+        <div id="reg-error" class="hidden text-crimson text-[11px] p-2 bg-coral/10 rounded-[8px] hairline-border"></div>
+        <button type="submit" class="w-full py-2.5 bg-offBlack hover:bg-graphite text-parchment rounded-[100px] text-xs font-mono uppercase tracking-wider transition">Create Account ▸</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 7. USER MANAGEMENT & PROFILE MODAL -->
+  <div id="user-mgmt-modal" class="hidden fixed inset-0 bg-ink/40 backdrop-blur-sm flex items-center justify-center z-50 p-6">
+    <div class="bg-parchment hairline-border rounded-[24px] w-full max-w-3xl p-6 shadow-2xl space-y-4 font-mono max-h-[85vh] flex flex-col">
+      <div class="flex items-center justify-between pb-2 hairline-b shrink-0">
+        <div class="flex items-center space-x-3">
+          <span class="text-xl">👤</span>
+          <div>
+            <h3 class="serif-title text-2xl text-offBlack">Account & User Management</h3>
+            <span class="text-[10px] text-smoke uppercase tracking-wider">Active Role-Based Access Control</span>
+          </div>
+        </div>
+        <button onclick="closeUserMgmtModal()" class="text-smoke hover:text-offBlack text-base">✕</button>
+      </div>
+
+      <!-- Current User Card -->
+      <div class="p-3 bg-periwinkle/25 rounded-[16px] hairline-border flex items-center justify-between shrink-0">
+        <div class="flex items-center space-x-4">
+          <div class="w-10 h-10 rounded-full bg-lakeBlue text-white flex items-center justify-center text-sm font-bold" id="card-user-avatar">A</div>
+          <div>
+            <div class="text-sm font-bold text-offBlack flex items-center space-x-2">
+              <span id="card-username">admin</span>
+              <span id="card-role-badge" class="px-2 py-0.5 rounded-full text-[9px] bg-lakeBlue text-white font-mono uppercase">ADMIN</span>
+            </div>
+            <div class="text-[11px] text-smoke" id="card-user-email">admin@agentmesh.local</div>
+          </div>
+        </div>
+        <div class="flex items-center space-x-2">
+          <button onclick="logoutUser()" class="px-3 py-1.5 hairline-border rounded-[100px] text-[11px] text-crimson hover:bg-coral/20 uppercase transition">Sign Out</button>
+        </div>
+      </div>
+
+      <!-- Admin / Operator User Directory Section -->
+      <div id="user-mgmt-table-section" class="flex-1 overflow-y-auto space-y-2">
+        <div class="flex items-center justify-between pt-2">
+          <span class="text-xs uppercase tracking-wider text-smoke font-bold">Registered Users</span>
+          <button onclick="loadUsersTable()" class="text-lakeBlue text-xs hover:underline">↻ Refresh List</button>
+        </div>
+        <div class="hairline-border rounded-[14px] overflow-hidden bg-parchment">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead class="bg-ash/20 hairline-b text-smoke uppercase text-[10px]">
+              <tr>
+                <th class="p-2.5">User</th>
+                <th class="p-2.5">Email</th>
+                <th class="p-2.5">Role</th>
+                <th class="p-2.5">Status</th>
+                <th class="p-2.5 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="user-table-tbody" class="divide-y divide-ash">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
