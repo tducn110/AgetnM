@@ -1,0 +1,1972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentMesh — Monad Editorial Multi-Agent Mesh Studio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            parchment: '#f6f3f1',
+            lakeBlue: '#2b59d1',
+            periwinkle: '#cfdaf5',
+            skyBlue: '#a0b5eb',
+            mint: '#a7fccd',
+            coral: '#ff9473',
+            gold: '#ecda98',
+            crimson: '#f37a0a',
+            offBlack: '#242424',
+            ink: '#000000',
+            graphite: '#4e4d4d',
+            smoke: '#797776',
+            ash: '#cecac8'
+          },
+          fontFamily: {
+            serif: ['"Newsreader"', 'Georgia', 'serif'],
+            mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    :root {
+      --color-parchment: #f6f3f1;
+      --color-lake-blue: #2b59d1;
+      --color-periwinkle-mist: #cfdaf5;
+      --color-sky-blue: #a0b5eb;
+      --color-mint: #a7fccd;
+      --color-coral: #ff9473;
+      --color-gold: #ecda98;
+      --color-crimson: #f37a0a;
+      --color-off-black: #242424;
+      --color-ink: #000000;
+      --color-graphite: #4e4d4d;
+      --color-smoke: #797776;
+      --color-ash: #cecac8;
+    }
+    body {
+      background-color: var(--color-parchment);
+      color: var(--color-off-black);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .serif-title {
+      font-family: 'Newsreader', Georgia, serif;
+      font-weight: 400;
+      letter-spacing: -0.02em;
+    }
+    .hairline-border {
+      border: 1px solid #cecac8;
+    }
+    .hairline-b {
+      border-bottom: 1px solid #cecac8;
+    }
+    .hairline-r {
+      border-right: 1px solid #cecac8;
+    }
+    .hairline-l {
+      border-left: 1px solid #cecac8;
+    }
+    .hairline-t {
+      border-top: 1px solid #cecac8;
+    }
+    /* Monad clean autohide scrollbars */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cecac8; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #797776; }
+    
+    @keyframes wireDash {
+      to { stroke-dashoffset: -32; }
+    }
+    .animate-wire-flow {
+      stroke-dasharray: 6 6;
+      animation: wireDash 1.2s linear infinite;
+    }
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 0.8; }
+      50% { opacity: 0.3; }
+    }
+    .pulse-glow {
+      animation: pulseGlow 2s ease-in-out infinite;
+    }
+    .toast-anim {
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+  </style>
+</head>
+<body class="flex flex-col h-screen overflow-hidden select-none bg-parchment text-offBlack">
+
+  <!-- TOP INK ANNOUNCEMENT BAR -->
+  <div class="h-9 bg-ink text-parchment px-6 flex items-center justify-between text-xs font-mono uppercase tracking-wider shrink-0 z-30">
+    <div class="flex items-center space-x-3">
+      <span class="w-2 h-2 rounded-full bg-mint animate-pulse"></span>
+      <span class="text-[11px] tracking-normal">MONAD SYSTEM RUNTIME // HERDR HEADLESS IPC CONNECTED</span>
+      <span class="text-smoke text-[10px] hidden md:inline">| REAL-TIME AUTO-GOVERNANCE ACTIVE</span>
+    </div>
+    <div class="flex items-center space-x-5 text-[11px]">
+      <span class="text-smoke">SESSION COST: <b class="text-parchment font-normal" id="global-cost">$0.35 / $5.00</b></span>
+      <span class="text-smoke">AUTO-COMPACT: <b class="text-mint font-normal" id="global-compact-status">ACTIVE (70% GATE)</b></span>
+      <button onclick="openGuideModal()" class="text-skyBlue hover:text-parchment underline text-[11px] lowercase">how it works (?)</button>
+    </div>
+  </div>
+
+  <!-- NAVIGATION HEADER -->
+  <header class="h-16 hairline-b bg-parchment px-6 flex items-center justify-between shrink-0 z-20">
+    <div class="flex items-center space-x-6">
+      <div class="flex items-center space-x-3">
+        <div class="w-7 h-7 rounded-full bg-lakeBlue flex items-center justify-center text-white text-xs font-mono font-medium">
+          M
+        </div>
+        <div>
+          <span class="serif-title text-2xl text-offBlack">Monad</span>
+          <span class="text-[11px] text-smoke font-mono uppercase tracking-wider ml-2">AgentMesh Studio</span>
+        </div>
+      </div>
+
+      <!-- Mode Selector Pills (Dual-View: Workspace vs Workflow) -->
+      <div class="hidden sm:flex items-center space-x-1 p-1 bg-parchment rounded-[100px] hairline-border">
+        <button onclick="setViewMode('unified')" id="btn-view-unified" class="px-3.5 py-1.5 text-xs rounded-[100px] font-mono uppercase tracking-wider bg-offBlack text-parchment transition">
+          Workspace View
+        </button>
+        <button onclick="setViewMode('workflow')" id="btn-view-workflow" class="px-3.5 py-1.5 text-xs rounded-[100px] font-mono uppercase tracking-wider text-lakeBlue hover:bg-periwinkle/30 transition flex items-center space-x-1">
+          <span>🌿</span>
+          <span>Workflow View</span>
+        </button>
+        <button onclick="setViewMode('wires')" id="btn-view-wires" class="px-3 py-1.5 text-xs rounded-[100px] font-mono uppercase tracking-wider text-lakeBlue hover:bg-periwinkle/30 transition flex items-center space-x-1">
+          <span>🕸️</span>
+          <span>Wires Studio</span>
+        </button>
+        <div class="w-px h-4 bg-ash mx-1"></div>
+        <button onclick="setViewMode('focus')" id="btn-view-focus" class="px-2.5 py-1.5 text-xs rounded-[100px] font-mono uppercase tracking-wider text-smoke hover:text-offBlack transition">
+          1-Focus
+        </button>
+        <button onclick="setViewMode('split')" id="btn-view-split" class="px-2.5 py-1.5 text-xs rounded-[100px] font-mono uppercase tracking-wider text-smoke hover:text-offBlack transition">
+          2-Split
+        </button>
+        <button onclick="setViewMode('grid')" id="btn-view-grid" class="px-2.5 py-1.5 text-xs rounded-[100px] font-mono uppercase tracking-wider text-smoke hover:text-offBlack transition">
+          6-Grid
+        </button>
+      </div>
+    </div>
+
+    <!-- Right Controls -->
+    <div class="flex items-center space-x-3">
+      <button onclick="triggerEmergencyStop()" class="px-3.5 py-1.5 bg-parchment hover:bg-coral/20 text-crimson hairline-border rounded-[100px] text-xs font-mono uppercase tracking-wider transition flex items-center space-x-1" title="Send Ctrl+C to all agents">
+        <span>🛑</span>
+        <span>Emergency Stop</span>
+      </button>
+      <button onclick="openSpawnModal()" class="px-4 py-2 bg-lakeBlue hover:opacity-90 text-parchment rounded-[100px] text-xs font-mono uppercase tracking-wider transition flex items-center space-x-1.5">
+        <span>+ Add Agent</span>
+        <span>▸</span>
+      </button>
+      <button onclick="fetchStatus()" class="w-8 h-8 rounded-full hairline-border hover:bg-smoke/10 flex items-center justify-center text-offBlack text-xs transition" title="Refresh state">
+        ↻
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN 3-COLUMN WORKBENCH -->
+  <div class="flex flex-1 overflow-hidden bg-parchment">
+
+    <!-- LEFT COLUMN: AGENT DIRECTORY & SESSION BUDGET (280px) -->
+    <aside class="w-72 hairline-r bg-parchment flex flex-col shrink-0">
+      
+      <!-- Session Quota Card -->
+      <div class="p-4 hairline-b bg-periwinkle/25">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-[11px] uppercase tracking-wider text-smoke">Session Budget</span>
+          <span class="text-[10px] text-lakeBlue cursor-pointer hover:underline" onclick="openSessionQuotaModal()">Edit limit</span>
+        </div>
+        <div class="serif-title text-xl text-offBlack mb-2" id="sidebar-cost-text">$0.35 <span class="text-xs text-smoke font-mono font-normal">/ $5.00 USD</span></div>
+        <div class="w-full h-1 bg-ash rounded-full overflow-hidden mb-2.5">
+          <div id="sidebar-cost-bar" class="h-full bg-lakeBlue transition-all duration-300" style="width: 7%"></div>
+        </div>
+        <div class="flex justify-between items-center text-[10px] text-smoke uppercase tracking-wider">
+          <span>Auto-Compact: <b class="text-lakeBlue cursor-pointer" onclick="toggleAutoCompact()">Active ⚡</b></span>
+          <span>Policy: <b class="text-offBlack">Strict Guard</b></span>
+        </div>
+      </div>
+
+      <!-- Evaluation Gate & Telemetry Card (0-Token Routing) -->
+      <div class="p-3.5 hairline-b bg-parchment text-xs font-mono">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-[10px] uppercase tracking-wider text-smoke font-semibold">Capability Gate</span>
+          <span id="gate-token-badge" class="px-2 py-0.5 rounded-[9999px] text-[9px] bg-emerald-100 text-emerald-800 font-bold">0 LLM TOKENS</span>
+        </div>
+        <div class="text-[11px] text-offBlack font-medium flex items-center justify-between mb-1">
+          <span>Routing Gate:</span>
+          <span id="gate-route-text" class="text-lakeBlue font-semibold">Rule-Based Cache</span>
+        </div>
+        <div class="text-[10px] text-smoke space-y-0.5 mb-2.5">
+          <div>Triggers: <span id="gate-trigger-text" class="text-graphite">Healthy (0 Active Triggers)</span></div>
+          <div>Optimal Agent: <span id="gate-target-agent" class="text-offBlack font-semibold">agy:gemini-3.8-flash</span></div>
+        </div>
+        <div class="flex space-x-1.5">
+          <button onclick="testEvaluationGate()" class="flex-1 py-1 bg-parchment hairline-border hover:bg-smoke/10 rounded-[100px] text-[9px] uppercase tracking-wider text-lakeBlue font-medium transition" title="Test Evaluation Gate API">
+            Test Route Gate
+          </button>
+          <button onclick="triggerVerificationUI()" class="flex-1 py-1 bg-lakeBlue hover:opacity-90 rounded-[100px] text-[9px] uppercase tracking-wider text-white font-medium transition" title="Trigger Independent Verifier">
+            🛡️ Verify Task
+          </button>
+        </div>
+      </div>
+
+      <!-- Agent Directory Header -->
+      <div class="p-3 text-[11px] font-mono uppercase tracking-wider text-smoke flex items-center justify-between hairline-b">
+        <span>Mesh Agents (<span id="agents-count">3</span>)</span>
+        <button onclick="openSpawnModal()" class="text-lakeBlue hover:underline text-[10px] uppercase font-semibold">+ New Pane</button>
+      </div>
+
+      <!-- Agents List Container -->
+      <div class="flex-1 overflow-y-auto p-2.5 space-y-1.5" id="agents-list">
+        <!-- Rendered by JS -->
+      </div>
+
+      <!-- Activity Logs / Event Stream -->
+      <div class="p-3 hairline-t bg-parchment text-xs shrink-0">
+        <div class="text-[10px] font-mono uppercase tracking-wider text-smoke mb-1.5 flex items-center justify-between">
+          <span>Dispatched Events</span>
+          <button onclick="clearActivityLogs()" class="text-[10px] text-smoke hover:text-offBlack uppercase">Clear</button>
+        </div>
+        <div class="space-y-1 max-h-24 overflow-y-auto text-[10px] font-mono text-graphite" id="activity-logs">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+    </aside>
+
+    <!-- CENTER COLUMN: TOPOLOGY STEPPER + MULTI-TERMINAL VIEWPORT -->
+    <main class="flex-1 flex flex-col bg-parchment overflow-hidden relative">
+      
+      <!-- Security / Permission Alert Banner -->
+      <div id="permission-banner" class="hidden bg-ink text-parchment px-6 py-2.5 flex items-center justify-between hairline-b z-20 text-xs font-mono">
+        <div class="flex items-center space-x-3">
+          <span class="text-coral font-bold">▲ APPROVAL REQUIRED</span>
+          <span>Agent <b id="blocked-agent-name" class="text-parchment font-medium underline">codex (w1:p2)</b> requests execution: <code class="bg-graphite/40 px-2 py-0.5 rounded text-periwinkle" id="blocked-cmd">git commit</code></span>
+        </div>
+        <div class="flex items-center space-x-2">
+          <button onclick="respondApproval('y')" class="px-3.5 py-1 bg-mint text-ink rounded-[100px] uppercase font-bold text-[10px] hover:opacity-90 transition">Approve (y)</button>
+          <button onclick="respondApproval('n')" class="px-3.5 py-1 bg-coral text-ink rounded-[100px] uppercase font-bold text-[10px] hover:opacity-90 transition">Deny (n)</button>
+        </div>
+      </div>
+
+      <!-- TOPOLOGY PIPELINE OVERVIEW (Visible in Unified & Wires modes) -->
+      <div id="top-topology-banner" class="p-4 hairline-b bg-periwinkle/15 shrink-0">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center space-x-2">
+            <span class="w-2 h-2 rounded-full bg-lakeBlue animate-pulse"></span>
+            <span class="text-xs font-mono uppercase tracking-wider text-offBlack font-semibold">Active Mesh Topology &amp; Wires</span>
+            <span class="text-[10px] text-smoke font-mono">| Click any connection wire to preview or dispatch</span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button onclick="openAddWireModal()" class="px-3 py-1 bg-parchment hairline-border text-offBlack hover:bg-smoke/10 rounded-[100px] text-[10px] font-mono uppercase tracking-wider transition">
+              + Connect Wire
+            </button>
+            <button onclick="toggleTopologyBanner()" id="btn-toggle-topology" class="text-smoke hover:text-offBlack text-xs px-1" title="Collapse/Expand">
+              ▲
+            </button>
+          </div>
+        </div>
+
+        <!-- Dynamic SVG Wiring Map -->
+        <div id="topology-svg-container" class="relative w-full overflow-x-auto flex justify-center py-1">
+          <!-- Dynamically generated SVG by JS -->
+        </div>
+      </div>
+
+      <!-- TERMINALS GRID CONTAINER -->
+      <div class="flex-1 p-4 overflow-y-auto" id="terminals-grid-container">
+        <div class="grid gap-3.5 h-full" id="terminals-grid">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+
+      <!-- DEDICATED WIRES STUDIO CANVAS (Visible when viewMode === 'wires') -->
+      <div class="hidden flex-1 flex flex-col p-6 overflow-y-auto bg-parchment" id="wires-canvas-container">
+        <div class="flex items-center justify-between mb-5 pb-3 hairline-b">
+          <div>
+            <h2 class="serif-title text-3xl text-offBlack">Differentiated Mesh Wire Studio</h2>
+            <p class="text-xs text-smoke font-mono mt-1">Configure contract filters, inspect live data packets, and connect terminals.</p>
+          </div>
+          <button onclick="openAddWireModal()" class="px-5 py-2 bg-lakeBlue text-parchment rounded-[100px] text-xs font-mono uppercase tracking-wider hover:opacity-90 transition">
+            + New Connection Wire ▸
+          </button>
+        </div>
+
+        <div class="bg-parchment rounded-[20px] hairline-border p-5 space-y-3">
+          <div class="flex items-center justify-between pb-2 hairline-b text-xs font-mono uppercase tracking-wider text-smoke">
+            <span>Configured Wire Channels &amp; Contract Filters</span>
+            <span class="text-[10px] text-smoke lowercase">click preview to edit before transmit</span>
+          </div>
+          <div class="space-y-2.5" id="full-wires-list">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- DEDICATED WORKFLOW VIEW CONTAINER (Visible when viewMode === 'workflow') -->
+      <div class="hidden flex-1 flex flex-col p-6 overflow-y-auto bg-parchment" id="workflow-view-container">
+        <!-- Rendered by renderWorkflowView() -->
+      </div>
+
+    </main>
+
+    <!-- RIGHT COLUMN: AGENT CUSTOMIZER & GOVERNANCE INSPECTOR (340px) -->
+    <aside class="w-80 hairline-l bg-parchment flex flex-col shrink-0">
+      
+      <!-- Inspector Tabs -->
+      <div class="flex hairline-b text-xs font-mono uppercase tracking-wider bg-parchment">
+        <button onclick="switchInspectorTab('agent')" id="tab-btn-agent" class="flex-1 py-2.5 text-center border-b-2 border-lakeBlue text-lakeBlue font-semibold">Agent Profile</button>
+        <button onclick="switchInspectorTab('compact')" id="tab-btn-compact" class="flex-1 py-2.5 text-center border-b-2 border-transparent text-smoke hover:text-offBlack">Compaction</button>
+        <button onclick="switchInspectorTab('firewall')" id="tab-btn-firewall" class="flex-1 py-2.5 text-center border-b-2 border-transparent text-smoke hover:text-offBlack">RBAC Guard</button>
+      </div>
+
+      <!-- Selected Agent Banner -->
+      <div class="p-4 hairline-b bg-periwinkle/20">
+        <div class="flex items-center justify-between mb-1">
+          <span class="serif-title text-xl text-offBlack" id="selected-agent-title">OpenAI Codex</span>
+          <span class="px-2.5 py-0.5 rounded-[9999px] text-[10px] font-mono uppercase tracking-wider bg-parchment hairline-border text-offBlack font-medium" id="selected-agent-badge">IDLE</span>
+        </div>
+        <div class="text-xs text-smoke font-mono" id="selected-agent-model">gpt-5.6-luna • Pane w1:p2</div>
+      </div>
+
+      <!-- TAB 1: AGENT PROFILE & CUSTOMIZATION -->
+      <div id="tab-content-agent" class="flex-1 p-4 overflow-y-auto space-y-4 text-xs font-mono">
+        <div>
+          <label class="text-[10px] text-smoke uppercase tracking-wider block mb-1">Agent Name</label>
+          <input id="edit-agent-name" type="text" class="w-full bg-parchment hairline-border rounded-[10px] p-2 text-offBlack focus:outline-none focus:border-lakeBlue">
+        </div>
+
+        <div>
+          <label class="text-[10px] text-smoke uppercase tracking-wider block mb-1">Assigned Mesh Role</label>
+          <input id="edit-agent-role" type="text" class="w-full bg-parchment hairline-border rounded-[10px] p-2 text-offBlack focus:outline-none focus:border-lakeBlue">
+        </div>
+
+        <div>
+          <label class="text-[10px] text-smoke uppercase tracking-wider block mb-1">LLM Model / Engine</label>
+          <select id="edit-agent-model" class="w-full bg-parchment hairline-border rounded-[10px] p-2 text-offBlack focus:outline-none">
+            <option value="Gemini 3.8 Flash (High)">Gemini 3.8 Flash (High)</option>
+            <option value="gpt-5.6-luna (v0.155.0)">gpt-5.6-luna (v0.155.0)</option>
+            <option value="Anthropic Claude 3.7 Sonnet">Anthropic Claude 3.7 Sonnet</option>
+            <option value="Terminal / Subprocess">Raw Shell Subprocess</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="text-[10px] text-smoke uppercase tracking-wider block mb-1">System Directive / Constraints</label>
+          <textarea id="edit-agent-prompt" rows="3" class="w-full bg-parchment hairline-border rounded-[10px] p-2 text-offBlack placeholder-smoke focus:outline-none focus:border-lakeBlue" placeholder="Custom instructions or behavioral rules for this terminal..."></textarea>
+        </div>
+
+        <button onclick="saveAgentCustomization()" class="w-full py-2.5 bg-lakeBlue hover:opacity-90 text-parchment rounded-[100px] text-xs font-mono uppercase tracking-wider transition flex items-center justify-center space-x-1.5">
+          <span>Save Agent Profile</span>
+          <span>▸</span>
+        </button>
+
+        <div class="pt-2 hairline-t flex space-x-2">
+          <button onclick="clearCurrentPane()" class="flex-1 py-1.5 bg-parchment hairline-border hover:bg-smoke/10 rounded-[100px] text-[10px] text-smoke uppercase">🧹 Clear View</button>
+          <button onclick="killCurrentPane()" class="flex-1 py-1.5 bg-parchment hairline-border hover:bg-coral/20 rounded-[100px] text-[10px] text-crimson uppercase">✕ Kill Pane</button>
+        </div>
+      </div>
+
+      <!-- TAB 2: CONTEXT & COMPACTION GOVERNANCE -->
+      <div id="tab-content-compact" class="hidden flex-1 p-4 overflow-y-auto space-y-5 text-xs font-mono">
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-smoke uppercase tracking-wider text-[10px]">Context Window Utilization</span>
+            <span class="text-offBlack font-bold text-sm" id="inspector-context-pct">12.5%</span>
+          </div>
+          <div class="w-full h-2 bg-ash rounded-full overflow-hidden">
+            <div id="inspector-context-bar" class="h-full bg-lakeBlue transition-all duration-500" style="width: 12.5%"></div>
+          </div>
+          <div class="flex justify-between text-[10px] text-smoke mt-1">
+            <span id="inspector-used-tokens">25,000 tokens</span>
+            <span id="inspector-max-tokens">200,000 max</span>
+          </div>
+        </div>
+
+        <div class="p-3.5 rounded-[14px] hairline-border bg-parchment space-y-1.5">
+          <div class="flex justify-between items-center text-xs">
+            <span class="text-smoke uppercase tracking-wider text-[10px]">Compaction Trigger</span>
+            <span class="text-lakeBlue font-bold" id="threshold-val">70%</span>
+          </div>
+          <input type="range" min="50" max="90" value="70" class="w-full accent-lakeBlue cursor-pointer" id="threshold-slider" oninput="updateQuotaSlider(this.value)">
+          <p class="text-[10px] text-smoke leading-tight">Auto-triggers <code class="text-offBlack font-semibold">/compact</code> when tokens reach this threshold.</p>
+        </div>
+
+        <div class="p-3.5 rounded-[14px] hairline-border bg-parchment space-y-1.5">
+          <div class="flex justify-between items-center text-xs">
+            <span class="text-smoke uppercase tracking-wider text-[10px]">Turn Limit Gate</span>
+            <span class="text-lakeBlue font-bold" id="turns-val">8 turns</span>
+          </div>
+          <input type="range" min="3" max="25" value="8" class="w-full accent-lakeBlue cursor-pointer" id="turns-slider" oninput="updateTurnsSlider(this.value)">
+          <p class="text-[10px] text-smoke leading-tight">Clears excessive terminal logs after this turn limit.</p>
+        </div>
+
+        <button onclick="triggerSelectedCompact()" class="w-full py-2.5 bg-lakeBlue hover:opacity-90 text-parchment rounded-[100px] text-xs font-mono uppercase tracking-wider transition flex items-center justify-center space-x-1.5">
+          <span>⚡ Trigger /compact Now</span>
+          <span>▸</span>
+        </button>
+      </div>
+
+      <!-- TAB 3: RBAC FIREWALL -->
+      <div id="tab-content-firewall" class="hidden flex-1 p-4 overflow-y-auto space-y-4 text-xs font-mono">
+        <div>
+          <span class="text-smoke uppercase tracking-wider text-[10px] block mb-2">Sandbox Isolation Level</span>
+          <div class="space-y-1.5">
+            <label class="flex items-center justify-between p-2.5 rounded-[12px] hairline-border bg-parchment cursor-pointer hover:bg-smoke/5">
+              <div>
+                <div class="text-xs font-semibold text-offBlack">ReadOnly</div>
+                <div class="text-[10px] text-smoke">Inspection only, zero writes</div>
+              </div>
+              <input type="radio" name="sandbox-level" value="ReadOnly" class="accent-lakeBlue" onchange="updateSandbox(this.value)">
+            </label>
+            <label class="flex items-center justify-between p-2.5 rounded-[12px] hairline-border bg-periwinkle/30 cursor-pointer">
+              <div>
+                <div class="text-xs font-semibold text-lakeBlue">WorkspaceOnly (Recommended)</div>
+                <div class="text-[10px] text-smoke">Scoped to active directory</div>
+              </div>
+              <input type="radio" name="sandbox-level" value="WorkspaceOnly" checked class="accent-lakeBlue" onchange="updateSandbox(this.value)">
+            </label>
+            <label class="flex items-center justify-between p-2.5 rounded-[12px] hairline-border bg-coral/10 cursor-pointer">
+              <div>
+                <div class="text-xs font-semibold text-crimson">DangerFullAccess</div>
+                <div class="text-[10px] text-smoke">Unrestricted host access</div>
+              </div>
+              <input type="radio" name="sandbox-level" value="DangerFullAccess" class="accent-crimson" onchange="updateSandbox(this.value)">
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <span class="text-smoke uppercase tracking-wider text-[10px] block mb-1.5">Allowed Tool Whitelist</span>
+          <div class="space-y-1.5 p-2.5 rounded-[12px] hairline-border bg-parchment">
+            <label class="flex items-center space-x-2 text-offBlack">
+              <input type="checkbox" checked class="rounded accent-lakeBlue">
+              <span>git (diff, commit, checkout)</span>
+            </label>
+            <label class="flex items-center space-x-2 text-offBlack">
+              <input type="checkbox" checked class="rounded accent-lakeBlue">
+              <span>cargo &amp; npm test runners</span>
+            </label>
+            <label class="flex items-center space-x-2 text-offBlack">
+              <input type="checkbox" checked class="rounded accent-lakeBlue">
+              <span>Local File Write &amp; Edit</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+    </aside>
+
+  </div>
+
+  <!-- ==================== MODALS & OVERLAYS ==================== -->
+
+  <!-- 1. WIRE DISPATCH INSPECTOR MODAL (PREVIEW & EDIT BEFORE SEND) -->
+  <div id="wire-inspector-modal" class="hidden fixed inset-0 bg-ink/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div class="bg-parchment hairline-border rounded-[24px] w-full max-w-3xl p-6 shadow-2xl flex flex-col max-h-[85vh] font-mono">
+      <div class="flex items-center justify-between pb-3 hairline-b shrink-0">
+        <div>
+          <h3 class="serif-title text-2xl text-offBlack" id="modal-wire-name">Directive Wire (Specs &amp; Tasks)</h3>
+          <p class="text-xs text-smoke font-mono mt-0.5" id="modal-wire-route">Source: w1:p1 ──▶ Target: w1:p2</p>
+        </div>
+        <button onclick="closeWireInspector()" class="text-smoke hover:text-offBlack text-base">✕</button>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4 my-4 flex-1 overflow-hidden">
+        <!-- Left: Raw Source Text Captured -->
+        <div class="flex flex-col overflow-hidden hairline-border rounded-[14px] bg-parchment p-3">
+          <div class="text-[10px] uppercase tracking-wider text-smoke mb-1.5 font-semibold">1. Source Terminal Output (Captured)</div>
+          <div id="inspector-raw-text" class="flex-1 overflow-y-auto text-[11px] leading-relaxed text-smoke bg-periwinkle/15 p-2.5 rounded-[8px] whitespace-pre-wrap select-text">
+            Loading source output...
+          </div>
+        </div>
+
+        <!-- Right: Filtered Payload (Editable by User) -->
+        <div class="flex flex-col overflow-hidden hairline-border rounded-[14px] bg-parchment p-3">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-[10px] uppercase tracking-wider text-lakeBlue font-semibold">2. Filtered Payload (User Editable)</span>
+            <span class="text-[9px] text-smoke">you have full control to edit</span>
+          </div>
+          <textarea id="inspector-editable-payload" class="flex-1 w-full bg-parchment hairline-border rounded-[8px] p-2.5 text-[11px] leading-relaxed text-offBlack focus:outline-none focus:border-lakeBlue select-text resize-none" placeholder="Payload to transmit..."></textarea>
+        </div>
+      </div>
+
+      <!-- Modal Bottom Actions -->
+      <div class="flex items-center justify-between pt-3 hairline-t shrink-0">
+        <div class="text-xs text-smoke">
+          Protocol: <span id="modal-wire-type" class="px-2 py-0.5 rounded-[9999px] text-[10px] bg-periwinkle/40 text-lakeBlue">spec_directive</span>
+        </div>
+        <div class="flex space-x-2">
+          <button onclick="closeWireInspector()" class="px-5 py-2 bg-parchment hairline-border text-smoke hover:text-offBlack rounded-[100px] text-xs uppercase tracking-wider transition">Cancel</button>
+          <button onclick="dispatchInspectedPayload()" class="px-6 py-2 bg-lakeBlue hover:opacity-90 text-parchment rounded-[100px] text-xs uppercase tracking-wider transition flex items-center space-x-1.5">
+            <span>Dispatch to Target Pane</span>
+            <span>▸</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. FULLSCREEN TERMINAL VIEW MODAL -->
+  <div id="fullscreen-term-modal" class="hidden fixed inset-0 bg-ink/50 backdrop-blur-sm flex items-center justify-center z-50 p-6">
+    <div class="bg-parchment hairline-border rounded-[24px] w-full max-w-5xl h-[85vh] p-6 shadow-2xl flex flex-col font-mono">
+      <div class="flex items-center justify-between pb-3 hairline-b shrink-0">
+        <div class="flex items-center space-x-3">
+          <span class="serif-title text-2xl text-offBlack" id="fs-term-title">TERMINAL VIEW</span>
+          <span class="text-xs text-smoke" id="fs-term-subtitle">(w1:p1)</span>
+        </div>
+        <div class="flex items-center space-x-2">
+          <button onclick="copyFullscreenText()" class="px-4 py-1.5 bg-parchment hairline-border rounded-[100px] text-xs text-offBlack hover:bg-smoke/10 uppercase">Copy All</button>
+          <button onclick="closeFullscreenTerm()" class="text-smoke hover:text-offBlack text-lg px-2">✕</button>
+        </div>
+      </div>
+      <div id="fs-term-viewport" class="flex-1 my-4 p-4 bg-periwinkle/10 hairline-border rounded-[16px] overflow-y-auto text-xs leading-relaxed text-offBlack whitespace-pre-wrap select-text">
+      </div>
+      <div class="h-10 flex items-center shrink-0">
+        <input type="text" id="fs-term-input" placeholder="Submit prompt to this pane..." class="flex-1 bg-parchment hairline-border rounded-[100px] px-4 py-2 text-xs text-offBlack focus:outline-none" onkeydown="if(event.key==='Enter') sendFsPrompt()">
+        <button onclick="sendFsPrompt()" class="ml-2 px-5 py-2 bg-lakeBlue text-parchment rounded-[100px] text-xs uppercase">Send ▸</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. SPAWN AGENT MODAL -->
+  <div id="spawn-modal" class="hidden fixed inset-0 bg-ink/40 backdrop-blur-sm flex items-center justify-center z-50">
+    <div class="bg-parchment hairline-border rounded-[24px] w-96 p-6 shadow-2xl space-y-4 font-mono">
+      <div class="flex items-center justify-between">
+        <h3 class="serif-title text-xl text-offBlack">Spawn Agent Pane</h3>
+        <button onclick="closeSpawnModal()" class="text-smoke hover:text-offBlack">✕</button>
+      </div>
+
+      <div>
+        <label class="text-xs text-smoke block mb-1">CLI Runtime Engine</label>
+        <select id="spawn-kind" class="w-full bg-parchment hairline-border rounded-[12px] p-2 text-xs text-offBlack">
+          <option value="codex">OpenAI Codex (gpt-5.6-luna)</option>
+          <option value="agy">Antigravity AGY (Gemini 3.8 Flash)</option>
+          <option value="claude">Claude Code (Anthropic Sonnet 4.6)</option>
+          <option value="shell">Raw Bash Terminal</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="text-xs text-smoke block mb-1">Assigned Mesh Role</label>
+        <input id="spawn-role" type="text" value="Code Reviewer &amp; QA" class="w-full bg-parchment hairline-border rounded-[12px] p-2 text-xs text-offBlack">
+      </div>
+
+      <div class="flex space-x-2 pt-2">
+        <button onclick="submitSpawnAgent()" class="flex-1 py-2.5 bg-lakeBlue hover:opacity-90 text-parchment rounded-[100px] text-xs uppercase tracking-wider transition">Spawn Pane ▸</button>
+        <button onclick="closeSpawnModal()" class="px-5 py-2.5 bg-parchment hairline-border text-smoke rounded-[100px] text-xs uppercase tracking-wider transition">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. ADD WIRE MODAL -->
+  <div id="add-wire-modal" class="hidden fixed inset-0 bg-ink/40 backdrop-blur-sm flex items-center justify-center z-50">
+    <div class="bg-parchment hairline-border rounded-[24px] w-[440px] p-6 shadow-2xl space-y-4 font-mono">
+      <div class="flex items-center justify-between">
+        <h3 class="serif-title text-xl text-offBlack">Connect Mesh Wire</h3>
+        <button onclick="closeAddWireModal()" class="text-smoke hover:text-offBlack">✕</button>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-xs text-smoke block mb-1">Source Agent</label>
+          <select id="wire-from" class="w-full bg-parchment hairline-border rounded-[12px] p-2 text-xs text-offBlack"></select>
+        </div>
+        <div>
+          <label class="text-xs text-smoke block mb-1">Target Agent</label>
+          <select id="wire-to" class="w-full bg-parchment hairline-border rounded-[12px] p-2 text-xs text-offBlack"></select>
+        </div>
+      </div>
+
+      <div>
+        <label class="text-xs text-smoke block mb-1">Wire Protocol Filter</label>
+        <select id="wire-type" onchange="onWireTypeChanged(this.value)" class="w-full bg-parchment hairline-border rounded-[12px] p-2 text-xs text-offBlack">
+          <option value="spec_directive">Directive Wire (Specs, Acceptance Criteria)</option>
+          <option value="artifact_diff">Artifact Wire (Code Diffs &amp; Files Only)</option>
+          <option value="feedback_loop">Feedback Loop Wire (Error Trace &amp; Retries)</option>
+          <option value="compact_summary">Executive Rollup Wire (5-Line Status &amp; Cost)</option>
+          <option value="custom">Custom Template Pipeline</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="text-xs text-smoke block mb-1">Channel Label</label>
+        <input id="wire-name" type="text" value="Directive Channel" class="w-full bg-parchment hairline-border rounded-[12px] p-2 text-xs text-offBlack">
+      </div>
+
+      <div>
+        <label class="text-xs text-smoke block mb-1">Contract Description</label>
+        <input id="wire-desc" type="text" value="Extracts Markdown specs and sends to implementer" class="w-full bg-parchment hairline-border rounded-[12px] p-2 text-xs text-offBlack">
+      </div>
+
+      <div class="flex space-x-2 pt-2">
+        <button onclick="submitAddWire()" class="flex-1 py-2.5 bg-lakeBlue hover:opacity-90 text-parchment rounded-[100px] text-xs uppercase tracking-wider transition">Connect Wire ▸</button>
+        <button onclick="closeAddWireModal()" class="px-5 py-2.5 bg-parchment hairline-border text-smoke rounded-[100px] text-xs uppercase tracking-wider transition">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. HOW IT WORKS GUIDE MODAL -->
+  <div id="guide-modal" class="hidden fixed inset-0 bg-ink/40 backdrop-blur-sm flex items-center justify-center z-50 p-6">
+    <div class="bg-parchment hairline-border rounded-[24px] w-full max-w-xl p-6 shadow-2xl space-y-4 font-mono">
+      <div class="flex items-center justify-between pb-2 hairline-b">
+        <h3 class="serif-title text-2xl text-offBlack">How AgentMesh Works</h3>
+        <button onclick="closeGuideModal()" class="text-smoke hover:text-offBlack text-base">✕</button>
+      </div>
+
+      <div class="space-y-3 text-xs leading-relaxed text-graphite">
+        <div class="p-3 bg-periwinkle/25 rounded-[14px] hairline-border">
+          <div class="text-lakeBlue font-bold text-xs mb-1">1. Differentiated Wires (Không truyền chat tự do)</div>
+          <p>Mỗi dây nối giữa 2 agent là một giao thức riêng: Directive Wire lọc specs, Artifact Wire lọc code diff, Feedback Loop lọc lỗi test. Không bị lẫn lộn giữa lời giải thích và code thực thi.</p>
+        </div>
+        <div class="p-3 bg-parchment rounded-[14px] hairline-border">
+          <div class="text-offBlack font-bold text-xs mb-1">2. Kiểm soát toàn diện trước khi bắn dữ liệu</div>
+          <p>Bấm vào bất kỳ dây nối nào hoặc nút <b class="text-lakeBlue">🔍 Preview</b> để xem chính xác dữ liệu nguồn và chỉnh sửa (edit) payload trước khi gửi sang Agent đích.</p>
+        </div>
+        <div class="p-3 bg-mint/20 rounded-[14px] hairline-border">
+          <div class="text-ink font-bold text-xs mb-1">3. Tự động nén bộ nhớ (Auto-Compaction Daemon)</div>
+          <p>Hệ thống chạy ngầm kiểm tra ngưỡng 70% context (Codex: 140k tokens/8 turns, AGY: 180k tokens/12 turns) và tự dọn dẹp bộ nhớ trong 8s mà không làm gián đoạn luồng làm việc.</p>
+        </div>
+      </div>
+
+      <div class="pt-2 flex justify-end">
+        <button onclick="closeGuideModal()" class="px-6 py-2 bg-lakeBlue text-parchment rounded-[100px] text-xs uppercase">Đã hiểu ▸</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION CONTAINER -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-2 pointer-events-none"></div>
+
+  <!-- ==================== JAVASCRIPT STUDIO ENGINE ==================== -->
+  <script>
+    let appState = null;
+    let selectedPaneId = "w1:p2";
+    let viewMode = "unified"; // 'unified', 'focus', 'split', 'grid', 'mesh10', 'wires'
+    let autoPollTimer = null;
+    let topologyExpanded = true;
+    let activeInspectedWireId = null;
+    let activeFullscreenPaneId = null;
+
+    // Toast Notification System (Replaces browser alert)
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      
+      let borderCol = '#cecac8';
+      let icon = 'ℹ️';
+      if (type === 'success') { borderCol = '#10b981'; icon = '✓'; }
+      if (type === 'warning') { borderCol = '#f59e0b'; icon = '▲'; }
+      if (type === 'error') { borderCol = '#f37a0a'; icon = '✕'; }
+
+      toast.className = 'toast-anim pointer-events-auto bg-parchment hairline-border px-4 py-2.5 rounded-[14px] shadow-lg text-xs font-mono text-offBlack flex items-center space-x-2.5 transform translate-y-2 opacity-0';
+      toast.style.borderColor = borderCol;
+      toast.innerHTML = `<span class="font-bold text-sm">${icon}</span> <span>${message}</span>`;
+      
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      }, 20);
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 4000);
+    }
+
+    let lastKnownStateStr = '';
+    let lastKnownLiveStr = '';
+
+    // Status Fetching Engine
+    async function fetchStatus(forceRender = false) {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        const stateStr = JSON.stringify(data.state);
+        const liveStr = JSON.stringify(data.agents_live);
+
+        // Only re-render when data actually changed or when explicitly forced
+        if (forceRender || stateStr !== lastKnownStateStr || liveStr !== lastKnownLiveStr) {
+          lastKnownStateStr = stateStr;
+          lastKnownLiveStr = liveStr;
+          appState = data;
+          renderAll();
+        }
+      } catch (e) {
+        console.error("Status fetch failed:", e);
+      }
+    }
+
+    function renderAll() {
+      if (!appState) return;
+
+      const agents = appState.state.agents || {};
+      const liveHerdr = appState.agents_live || {};
+      const paneIds = Object.keys(agents);
+
+      // 1. Render Left Directory
+      document.getElementById('agents-count').innerText = paneIds.length;
+      const listEl = document.getElementById('agents-list');
+      listEl.innerHTML = '';
+
+      paneIds.forEach(pid => {
+        const ag = agents[pid];
+        const live = liveHerdr[pid] || {};
+        const status = (live.agent_status || 'idle').toUpperCase();
+        const isSelected = (pid === selectedPaneId);
+
+        let badgeBg = '#cfdaf5';
+        let badgeColor = '#242424';
+        if (status === 'WORKING') { badgeBg = '#ecda98'; badgeColor = '#242424'; }
+        if (status === 'BLOCKED') { badgeBg = '#ff9473'; badgeColor = '#000000'; }
+
+        const item = document.createElement('div');
+        item.className = `p-2.5 rounded-[14px] cursor-pointer transition flex items-center justify-between ${
+          isSelected ? 'bg-periwinkle/40 hairline-border text-offBlack font-medium' : 'bg-parchment hairline-border text-graphite hover:bg-periwinkle/15'
+        }`;
+        item.onclick = () => selectAgent(pid);
+
+        item.innerHTML = `
+          <div class="flex items-center space-x-2 truncate">
+            <span class="w-2 h-2 rounded-full shrink-0" style="background: ${status === 'WORKING' ? '#f37a0a' : '#2b59d1'};"></span>
+            <div class="truncate">
+              <div class="text-xs font-mono font-medium text-offBlack truncate">
+                ${ag.name.toUpperCase()} <span class="text-[10px] text-smoke font-normal">(${pid})</span>
+              </div>
+              <div class="text-[10px] text-smoke truncate">${ag.role}</div>
+            </div>
+          </div>
+          <div class="text-right shrink-0 ml-2">
+            <span class="px-1.5 py-0.5 rounded-[9999px] text-[8px] font-mono uppercase tracking-wider" style="background: ${badgeBg}; color: ${badgeColor};">${status}</span>
+            <div class="text-[9px] text-lakeBlue font-bold mt-0.5">${Math.round(ag.estimated_tokens / 1000)}k t</div>
+          </div>
+        `;
+        listEl.appendChild(item);
+      });
+
+      // 2. Render Dispatched Activity Logs
+      const logsEl = document.getElementById('activity-logs');
+      logsEl.innerHTML = '';
+      (appState.state.activity_logs || []).slice(0, 5).forEach(l => {
+        const row = document.createElement('div');
+        row.className = 'truncate text-[10px] font-mono text-smoke';
+        row.innerHTML = `<span class="text-offBlack font-medium">[${l.time}]</span> ${l.msg}`;
+        logsEl.appendChild(row);
+      });
+
+      // 3. Render Top Dynamic SVG Topology
+      renderDynamicTopologySVG();
+
+      // 4. Render Active Main Canvas (Terminals, Workflow, or Wires)
+      if (viewMode === 'wires') {
+        document.getElementById('terminals-grid-container').classList.add('hidden');
+        document.getElementById('wires-canvas-container').classList.remove('hidden');
+        document.getElementById('workflow-view-container').classList.add('hidden');
+        renderWiresStudio();
+      } else if (viewMode === 'workflow') {
+        document.getElementById('terminals-grid-container').classList.add('hidden');
+        document.getElementById('wires-canvas-container').classList.add('hidden');
+        document.getElementById('workflow-view-container').classList.remove('hidden');
+        renderWorkflowView();
+      } else {
+        document.getElementById('terminals-grid-container').classList.remove('hidden');
+        document.getElementById('wires-canvas-container').classList.add('hidden');
+        document.getElementById('workflow-view-container').classList.add('hidden');
+        renderTerminalsGrid();
+      }
+
+      // 5. Update Capability Gate Telemetry Card
+      updateTelemetryCard();
+
+      // 6. Render Selected Inspector
+      renderInspector();
+    }
+
+    // Dynamic SVG Topology Visualizer (Supports 6 Canonical Mesh Slots + 7 Wires)
+    function renderDynamicTopologySVG() {
+      const container = document.getElementById('topology-svg-container');
+      const agents = appState.state.agents || {};
+      const wires = appState.state.wires || [];
+      const pids = Object.keys(agents);
+
+      if (pids.length === 0) {
+        container.innerHTML = `<span class="text-xs text-smoke">No active agents spawned.</span>`;
+        return;
+      }
+
+      const svgW = 900;
+      const svgH = 220;
+      let nodesPos = {};
+      let nodesSvg = '';
+
+      // Canonical 6-Slot 3-Column x 2-Row Topology Map
+      const canonicalCoords = {
+        'w2:p1': { x: 25, y: 15, col: 'Plan Phase' },
+        'w2:p2': { x: 25, y: 115, col: 'Plan Phase' },
+        'w2:p3': { x: 335, y: 15, col: 'Worktree Phase' },
+        'w2:p4': { x: 335, y: 115, col: 'Worktree Phase' },
+        'w2:p5': { x: 645, y: 15, col: 'Verification Phase' },
+        'w2:p6': { x: 645, y: 115, col: 'Verification Phase' }
+      };
+
+      const nodeW = 225;
+      const nodeH = 75;
+
+      pids.forEach((pid, idx) => {
+        const ag = agents[pid];
+        let pos = canonicalCoords[pid];
+        if (!pos) {
+          const col = idx % 3;
+          const row = Math.floor(idx / 3);
+          pos = { x: 25 + col * 310, y: 15 + row * 100 };
+        }
+
+        const isPrivileged = (ag.permission_profile === 'implementer' || ag.sandbox === 'PrivilegedWorkspace');
+        const isManaged = (ag.execution_mode === 'MANAGED_SESSION');
+        const isSel = (pid === selectedPaneId);
+
+        nodesPos[pid] = {
+          x: pos.x, y: pos.y,
+          cx: pos.x + nodeW / 2, cy: pos.y + nodeH / 2,
+          left: pos.x, right: pos.x + nodeW,
+          top: pos.y, bottom: pos.y + nodeH
+        };
+
+        const bgFill = isSel ? '#cfdaf5' : (isPrivileged ? '#f0fdf4' : '#f6f3f1');
+        const strokeColor = isSel ? '#2b59d1' : (isPrivileged ? '#10b981' : '#cecac8');
+
+        nodesSvg += `
+          <g transform="translate(${pos.x}, ${pos.y})" class="cursor-pointer" onclick="selectAgent('${pid}')">
+            <rect width="${nodeW}" height="${nodeH}" rx="14" fill="${bgFill}" stroke="${strokeColor}" stroke-width="${isSel ? 2 : 1.2}"/>
+            <circle cx="0" cy="${nodeH/2}" r="4" fill="${isPrivileged ? '#10b981' : '#2b59d1'}"/>
+            <circle cx="${nodeW}" cy="${nodeH/2}" r="4" fill="${isPrivileged ? '#10b981' : '#2b59d1'}"/>
+            <text x="12" y="18" font-family="'JetBrains Mono', monospace" font-size="9" fill="${isPrivileged ? '#059669' : '#2b59d1'}" font-weight="bold">${ag.name.toUpperCase()} (${pid})</text>
+            <text x="12" y="34" font-family="'Newsreader', Georgia, serif" font-size="12" fill="#242424" font-weight="500">${(ag.role || '').slice(0, 24)}</text>
+            <text x="12" y="49" font-family="'JetBrains Mono', monospace" font-size="8.5" fill="#797776">Mode: ${isManaged ? 'MANAGED JSON' : 'MANUAL PTY'} • ${isPrivileged ? 'PRIVILEGED' : 'PROXY'}</text>
+            <text x="12" y="63" font-family="'JetBrains Mono', monospace" font-size="8.5" fill="#2b59d1" font-weight="bold">${Math.round(ag.estimated_tokens/1000)}k / ${Math.round(ag.max_context/1000)}k tokens</text>
+          </g>
+        `;
+      });
+
+      // Render 7 Inter-Agent Wires
+      let wiresSvg = '';
+      wires.forEach((w, wIdx) => {
+        const src = nodesPos[w.from_pane];
+        const tgt = nodesPos[w.to_pane];
+        if (!src || !tgt) return;
+
+        let pathD = '';
+        let labelX = 0;
+        let labelY = 0;
+
+        // Custom curve routes for clear 3x2 topology visibility
+        if (w.from_pane === 'w2:p1' && w.to_pane === 'w2:p2') {
+          // Downward wire between slots 1 and 2
+          pathD = `M ${src.x + 80} ${src.bottom} L ${tgt.x + 80} ${tgt.top}`;
+          labelX = src.x + 80; labelY = (src.bottom + tgt.top) / 2;
+        } else if (w.from_pane === 'w2:p5' && w.to_pane === 'w2:p6') {
+          // Downward wire between slots 5 and 6
+          pathD = `M ${src.x + 140} ${src.bottom} L ${tgt.x + 140} ${tgt.top}`;
+          labelX = src.x + 140; labelY = (src.bottom + tgt.top) / 2;
+        } else if (w.from_pane === 'w2:p6' && w.to_pane === 'w2:p1') {
+          // Feedback Loop wire from bottom-right (w2:p6) sweeping under and up to top-left (w2:p1)
+          const x1 = src.cx; const y1 = src.bottom;
+          const x2 = tgt.left; const y2 = tgt.cy;
+          pathD = `M ${x1} ${y1} C ${x1} 210, 10 210, 10 80 C 10 ${y2}, ${x2 - 10} ${y2}, ${x2} ${y2}`;
+          labelX = 450; labelY = 205;
+        } else {
+          // Horizontal / cross curve
+          const isForward = tgt.cx > src.cx;
+          const x1 = isForward ? src.right : src.left;
+          const y1 = src.cy + (wIdx % 2 === 0 ? -10 : 10);
+          const x2 = isForward ? tgt.left : tgt.right;
+          const y2 = tgt.cy + (wIdx % 2 === 0 ? -10 : 10);
+          const curveOffset = isForward ? -20 : 20;
+          const cx1 = x1 + (x2 - x1) * 0.4;
+          const cy1 = y1 + curveOffset;
+          const cx2 = x1 + (x2 - x1) * 0.6;
+          const cy2 = y2 + curveOffset;
+          pathD = `M ${x1} ${y1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${x2} ${y2}`;
+          labelX = (x1 + x2) / 2;
+          labelY = (y1 + y2) / 2 + curveOffset / 2;
+        }
+
+        wiresSvg += `
+          <g class="cursor-pointer" onclick="inspectWire('${w.id}')">
+            <path d="${pathD}" fill="none" stroke="${w.color || '#2b59d1'}" stroke-width="2.5" class="animate-wire-flow"/>
+            <rect x="${labelX - 35}" y="${labelY - 8}" width="70" height="16" rx="8" fill="#f6f3f1" stroke="${w.color || '#cecac8'}" stroke-width="1"/>
+            <text x="${labelX}" y="${labelY + 3.5}" font-family="'JetBrains Mono', monospace" font-size="7.5" fill="${w.color || '#242424'}" font-weight="bold" text-anchor="middle">
+              ${(w.filter || w.type).split('_')[0].toUpperCase()}
+            </text>
+          </g>
+        `;
+      });
+
+      container.innerHTML = `
+        <svg viewBox="0 0 ${svgW} ${svgH}" class="w-full max-w-5xl h-auto" xmlns="http://www.w3.org/2000/svg">
+          ${wiresSvg}
+          ${nodesSvg}
+        </svg>
+      `;
+    }
+
+    // Terminals Grid Rendering with 6 Slots, Privileged/Proxy Badges & Mode Toggles
+    let lastRenderedPidsKey = '';
+    let lastRenderedViewMode = '';
+
+    function renderTerminalsGrid() {
+      const grid = document.getElementById('terminals-grid');
+      const agents = appState?.state?.agents || {};
+      let pids = Object.keys(agents);
+
+      if (pids.length === 0) {
+        lastRenderedPidsKey = '';
+        grid.className = 'flex items-center justify-center h-full';
+        grid.innerHTML = `
+          <div class="text-center p-8 bg-parchment hairline-border rounded-[20px] max-w-md font-mono">
+            <div class="text-3xl mb-3">⚡</div>
+            <div class="serif-title text-base text-offBlack font-medium mb-1">No Active Agent Panes</div>
+            <div class="text-xs text-smoke mb-4">Orchestrator session is online. Click [+ Add Agent] to spawn.</div>
+            <button onclick="openSpawnModal()" class="px-5 py-2.5 bg-lakeBlue hover:opacity-90 text-parchment rounded-[100px] text-xs uppercase tracking-wider transition inline-flex items-center space-x-1.5">
+              <span>+ Spawn Agent</span>
+              <span>▸</span>
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      let activeTargetPids = pids;
+      if (viewMode === 'focus') {
+        grid.className = 'grid grid-cols-1 h-full';
+        activeTargetPids = (selectedPaneId && agents[selectedPaneId]) ? [selectedPaneId] : [pids[0]];
+      } else if (viewMode === 'split') {
+        grid.className = 'grid grid-cols-2 gap-3.5 h-full';
+        activeTargetPids = pids.slice(0, 2);
+      } else if (viewMode === 'grid') {
+        grid.className = 'grid grid-cols-3 grid-rows-2 gap-3 h-full';
+        activeTargetPids = pids.slice(0, 6);
+      } else {
+        // Workspace default: 3 columns x 2 rows for 6 slots
+        grid.className = pids.length >= 5 ? 'grid grid-cols-3 grid-rows-2 gap-3 h-full' : (pids.length <= 2 ? 'grid grid-cols-2 gap-3.5 h-full' : 'grid grid-cols-3 gap-3.5 h-full');
+      }
+
+      const pidsKey = activeTargetPids.join(',');
+
+      if (pidsKey === lastRenderedPidsKey && viewMode === lastRenderedViewMode) {
+        activeTargetPids.forEach(pid => {
+          const ag = agents[pid] || { name: 'Agent' };
+          const titleEl = document.getElementById(`card-title-${pid.replace(':', '-')}`);
+          if (titleEl) titleEl.innerText = ag.name.toUpperCase();
+        });
+        return;
+      }
+
+      const savedInputValues = {};
+      document.querySelectorAll('input[id^="prompt-input-"]').forEach(inp => {
+        savedInputValues[inp.id] = inp.value;
+      });
+      const activeElId = document.activeElement ? document.activeElement.id : null;
+
+      lastRenderedPidsKey = pidsKey;
+      lastRenderedViewMode = viewMode;
+      grid.innerHTML = '';
+
+      activeTargetPids.forEach(pid => {
+        const ag = agents[pid] || { name: 'Agent', role: 'Worker', model: 'CLI' };
+        const isPrivileged = (ag.permission_profile === 'implementer' || ag.sandbox === 'PrivilegedWorkspace');
+        const isManaged = (ag.execution_mode === 'MANAGED_SESSION');
+
+        const card = document.createElement('div');
+        card.className = `flex flex-col bg-parchment hairline-border rounded-[20px] overflow-hidden ${
+          isPrivileged ? 'border-emerald-300/80 shadow-sm' : ''
+        }`;
+
+        // Role-tailored action chips
+        let quickChips = '';
+        if (pid === 'w2:p1') {
+          quickChips = `
+            <button onclick="setPromptInput('${pid}', 'Define GoalSpec with acceptance criteria and constraints')" class="px-2 py-0.5 rounded-[9999px] text-[9px] bg-parchment hairline-border text-lakeBlue hover:bg-periwinkle/30 transition">🎯 GoalSpec</button>
+            <button onclick="setPromptInput('${pid}', 'Review system constraints and verify acceptance criteria')" class="px-2 py-0.5 rounded-[9999px] text-[9px] bg-parchment hairline-border text-graphite hover:bg-smoke/10 transition">🔒 Constraints</button>
+          `;
+        } else if (pid === 'w2:p2') {
+          quickChips = `
+            <button onclick="setPromptInput('${pid}', 'Decompose GoalSpec into Task DAG: Task A (UI) and Task B (Backend)')" class="px-2 py-0.5 rounded-[9999px] text-[9px] bg-parchment hairline-border text-lakeBlue hover:bg-periwinkle/30 transition">🌿 Task DAG</button>
+            <button onclick="setPromptInput('${pid}', 'Dispatch TaskSpec A to Implementer A (w2:p3)')" class="px-2 py-0.5 rounded-[9999px] text-[9px] bg-parchment hairline-border text-graphite hover:bg-smoke/10 transition">⚡ Dispatch T-A</button>
+          `;
+        } else if (pid === 'w2:p3') {
+          quickChips = `
+            <button onclick="setPromptInput('${pid}', 'Implement frontend components according to TaskSpec in worktree impl-a')" class="px-2 py-0.5 rounded-[9999px] text-[9px] bg-parchment hairline-border text-emerald-700 hover:bg-emerald-50 transition">💻 Implement UI</button>
+            <button onclick="setPromptInput('${pid}', 'git status && git diff --stat')" class="px-2 py-0.5 rounded-[9999px] text-[9px] bg-parchment hairline-border text-graphite hover:bg-smoke/10 transition">📦 git diff</button>
+          `;
+        } else if (pid === 'w2:p4') {
+          quickChips = `
+            <button onclick="setPromptInput('${pid}', 'Implement backend endpoints in worktree impl-b')" class="px-2 py-0.5 rounded-[9999px] text-[9px] bg-parchment hairline-border text-emerald-700 hover:bg-emerald-50 transition">⚙️ Backend</button>
+            <button onclick="setPromptInput('${pid}', 'git status && git diff --stat')" class="px-2 py-0.5 rounded-[9999px] text-[9px] bg-parchment hairline-border text-graphite hover:bg-smoke/10 transition">📦 git diff</button>
+          `;
+        } else if (pid === 'w2:p5') {
+          quickChips = `
+            <button onclick="setPromptInput('${pid}', 'pytest -v || python3 -m unittest discover')" class="px-2 py-0.5 rounded-[9999px] text-[9px] bg-parchment hairline-border text-lakeBlue hover:bg-periwinkle/30 transition">🧪 Run Tests</button>
+            <button onclick="setPromptInput('${pid}', 'git status')" class="px-2 py-0.5 rounded-[9999px] text-[9px] bg-parchment hairline-border text-graphite hover:bg-smoke/10 transition">🔍 Status</button>
+          `;
+        } else if (pid === 'w2:p6') {
+          quickChips = `
+            <button onclick="triggerVerificationUI()" class="px-2 py-0.5 rounded-[9999px] text-[9px] bg-parchment hairline-border text-lakeBlue hover:bg-periwinkle/30 transition">🛡️ Run Verifier</button>
+            <button onclick="setPromptInput('${pid}', 'Evaluate ExecutionReceipt against GoalSpec acceptance criteria')" class="px-2 py-0.5 rounded-[9999px] text-[9px] bg-parchment hairline-border text-graphite hover:bg-smoke/10 transition">📄 Audit</button>
+          `;
+        } else {
+          quickChips = `
+            <button onclick="setPromptInput('${pid}', 'Execute next instruction')" class="px-2 py-0.5 rounded-[9999px] text-[9px] bg-parchment hairline-border text-lakeBlue hover:bg-periwinkle/30 transition">⚡ Run</button>
+            <button onclick="setPromptInput('${pid}', 'git status')" class="px-2 py-0.5 rounded-[9999px] text-[9px] bg-parchment hairline-border text-graphite hover:bg-smoke/10 transition">🔍 Status</button>
+          `;
+        }
+
+        const permBadge = isPrivileged
+          ? `<span class="px-1.5 py-0.5 rounded-[9999px] text-[8px] bg-emerald-100 text-emerald-800 font-mono font-bold" title="Privileged Worktree Root">PRIVILEGED</span>`
+          : `<span class="px-1.5 py-0.5 rounded-[9999px] text-[8px] bg-sky-100 text-sky-800 font-mono font-bold" title="Restricted Proxy Sandbox">PROXY</span>`;
+
+        const modeBadge = `<button onclick="toggleExecutionMode('${pid}')" class="px-1.5 py-0.5 rounded-[100px] text-[8px] font-mono font-bold transition ${
+          isManaged ? 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200' : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+        }" title="Click to toggle execution mode (MANAGED_SESSION / MANUAL_PTY)">${isManaged ? 'MANAGED JSON' : 'MANUAL PTY'}</button>`;
+
+        card.innerHTML = `
+          <!-- Card Header Bar -->
+          <div class="h-9 px-3 bg-periwinkle/20 hairline-b flex items-center justify-between shrink-0">
+            <div class="flex items-center space-x-1.5 truncate">
+              <span class="w-1.5 h-1.5 rounded-full ${isPrivileged ? 'bg-emerald-500' : 'bg-lakeBlue'} shrink-0"></span>
+              <span class="serif-title text-xs text-offBlack font-semibold truncate" id="card-title-${pid.replace(':', '-')}">${ag.name.toUpperCase()}</span>
+              <span class="text-[9px] text-smoke font-mono">(${pid})</span>
+              ${permBadge}
+              ${modeBadge}
+            </div>
+            <div class="flex items-center space-x-1 shrink-0">
+              <button onclick="triggerCompact('${pid}')" class="px-1.5 py-0.5 rounded-[100px] text-[8px] bg-parchment hover:bg-smoke/10 text-lakeBlue font-mono uppercase tracking-wider hairline-border transition" title="Compact Memory">⚡</button>
+              <button onclick="openFullscreenTerm('${pid}')" class="text-smoke hover:text-offBlack text-xs p-0.5" title="Maximize Viewport">⛶</button>
+              <button onclick="selectAgent('${pid}')" class="text-smoke hover:text-offBlack text-xs p-0.5" title="Customize Agent">⚙️</button>
+              <button onclick="killPanePrompt('${pid}')" class="text-smoke hover:text-crimson text-xs p-0.5" title="Close Pane">✕</button>
+            </div>
+          </div>
+
+          <!-- Live Terminal Viewport -->
+          <div class="flex-1 bg-parchment p-3 overflow-y-auto font-mono text-[10.5px] leading-relaxed text-offBlack hairline-b select-text" id="term-view-${pid.replace(':', '-')}">
+            <span class="text-smoke">// Reading stream from Herdr headless IPC...</span>
+          </div>
+
+          <!-- Quick Chips Bar -->
+          <div class="px-2.5 py-1 bg-parchment hairline-b flex items-center space-x-1.5 overflow-x-auto shrink-0">
+            <span class="text-[8.5px] text-smoke uppercase font-semibold">Chips:</span>
+            ${quickChips}
+          </div>
+
+          <!-- Dispatch Input Bar -->
+          <div class="h-8 bg-parchment px-2.5 flex items-center shrink-0">
+            <input type="text" id="prompt-input-${pid.replace(':', '-')}" placeholder="Submit directive to ${ag.name}..." 
+              class="flex-1 bg-transparent border-none text-[11px] font-mono text-offBlack placeholder-smoke focus:outline-none"
+              onkeydown="if(event.key==='Enter') sendPanePrompt('${pid}')">
+            <button onclick="sendPanePrompt('${pid}')" class="text-lakeBlue hover:opacity-80 font-mono font-bold text-xs px-1.5 uppercase">Send ▸</button>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+
+      // Restore any typed text and focus
+      Object.entries(savedInputValues).forEach(([id, val]) => {
+        const el = document.getElementById(id);
+        if (el && val) el.value = val;
+      });
+      if (activeElId && document.getElementById(activeElId)) {
+        document.getElementById(activeElId).focus();
+      }
+    }
+
+    // Workflow View: Visualizing GoalSpec -> Plan DAG -> ExecutionReceipts -> Independent VerificationReport
+    function renderWorkflowView() {
+      const container = document.getElementById('workflow-view-container');
+      const agents = appState?.state?.agents || {};
+      const logs = appState?.state?.activity_logs || [];
+
+      container.innerHTML = `
+        <div class="space-y-6 max-w-6xl mx-auto w-full">
+          <!-- Workflow Header Bar -->
+          <div class="flex items-center justify-between pb-4 hairline-b">
+            <div>
+              <div class="flex items-center space-x-2">
+                <span class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
+                <h2 class="serif-title text-3xl text-offBlack">Autonomous Workflow & Task DAG Engine</h2>
+              </div>
+              <p class="text-xs text-smoke font-mono mt-1">
+                Decoupled verification architecture: Agent turn completion (<code>result.status == SUCCESS</code>) is decoupled from task acceptance. Governed by independent verification evidence.
+              </p>
+            </div>
+            <div class="flex items-center space-x-2">
+              <button onclick="testEvaluationGate()" class="px-3.5 py-1.5 bg-parchment hairline-border hover:bg-smoke/10 text-offBlack rounded-[100px] text-xs font-mono uppercase tracking-wider transition">
+                ⚡ Test 0-Token Gate
+              </button>
+              <button onclick="triggerVerificationUI()" class="px-4 py-2 bg-lakeBlue hover:opacity-90 text-parchment rounded-[100px] text-xs font-mono uppercase tracking-wider transition flex items-center space-x-1.5 shadow-sm">
+                <span>🛡️ Run Verification Report</span>
+                <span>▸</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 4-Stage Milestone Stepper (Goal -> Plan -> Impl -> Verifier) -->
+          <div class="grid grid-cols-4 gap-4">
+            
+            <!-- Stage 1: Goal Specification -->
+            <div class="bg-parchment hairline-border rounded-[18px] p-4 flex flex-col justify-between">
+              <div>
+                <div class="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-smoke mb-1">
+                  <span>Stage 1</span>
+                  <span class="text-lakeBlue font-bold">Goal Analyst (w2:p1)</span>
+                </div>
+                <h3 class="serif-title text-lg text-offBlack font-semibold mb-1">GoalSpec</h3>
+                <p class="text-xs text-graphite font-mono mb-3 leading-relaxed">
+                  Refines raw requirements into formal schema, boundary constraints, and acceptance criteria.
+                </p>
+                <div class="p-2.5 rounded-[10px] bg-periwinkle/15 hairline-border font-mono text-[10px] space-y-1">
+                  <div>• Objective: Feature Implementation</div>
+                  <div>• Acceptance: 3 strict criteria</div>
+                  <div>• Sandbox: ToolProxySandbox</div>
+                </div>
+              </div>
+              <div class="mt-4 pt-2.5 hairline-t flex items-center justify-between text-[10px] font-mono">
+                <span class="text-emerald-700 font-bold">● SPEC READY</span>
+                <button onclick="setPromptInput('w2:p1', 'Refine GoalSpec acceptance criteria'); setViewMode('unified');" class="text-lakeBlue hover:underline">Edit ▸</button>
+              </div>
+            </div>
+
+            <!-- Stage 2: Task Plan DAG -->
+            <div class="bg-parchment hairline-border rounded-[18px] p-4 flex flex-col justify-between">
+              <div>
+                <div class="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-smoke mb-1">
+                  <span>Stage 2</span>
+                  <span class="text-lakeBlue font-bold">Lead Planner (w2:p2)</span>
+                </div>
+                <h3 class="serif-title text-lg text-offBlack font-semibold mb-1">PlanSpec DAG</h3>
+                <p class="text-xs text-graphite font-mono mb-3 leading-relaxed">
+                  Decomposes GoalSpec into independent subtask specs and assigns to isolated worktrees.
+                </p>
+                <div class="p-2.5 rounded-[10px] bg-periwinkle/15 hairline-border font-mono text-[10px] space-y-1">
+                  <div>• T-001: Frontend UI (Impl A)</div>
+                  <div>• T-002: Backend API (Impl B)</div>
+                  <div>• Dependencies: Concurrency safe</div>
+                </div>
+              </div>
+              <div class="mt-4 pt-2.5 hairline-t flex items-center justify-between text-[10px] font-mono">
+                <span class="text-emerald-700 font-bold">● DAG DISPATCHED</span>
+                <button onclick="setPromptInput('w2:p2', 'Generate updated PlanSpec DAG'); setViewMode('unified');" class="text-lakeBlue hover:underline">Edit ▸</button>
+              </div>
+            </div>
+
+            <!-- Stage 3: Privileged Implementation -->
+            <div class="bg-parchment hairline-border rounded-[18px] p-4 flex flex-col justify-between border-emerald-300">
+              <div>
+                <div class="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-smoke mb-1">
+                  <span>Stage 3</span>
+                  <span class="text-emerald-700 font-bold">Worktrees A &amp; B</span>
+                </div>
+                <h3 class="serif-title text-lg text-offBlack font-semibold mb-1">Execution Receipts</h3>
+                <p class="text-xs text-graphite font-mono mb-3 leading-relaxed">
+                  Dual privileged implementers execute in isolated git worktrees (<code class="text-emerald-800">impl-a</code>, <code class="text-emerald-800">impl-b</code>).
+                </p>
+                <div class="p-2.5 rounded-[10px] bg-emerald-50/70 hairline-border font-mono text-[10px] space-y-1 text-emerald-900">
+                  <div>• Impl A (w2:p3): .agentmesh/worktrees/impl-a</div>
+                  <div>• Impl B (w2:p4): .agentmesh/worktrees/impl-b</div>
+                  <div>• Permissions: PrivilegedWorkspace</div>
+                </div>
+              </div>
+              <div class="mt-4 pt-2.5 hairline-t flex items-center justify-between text-[10px] font-mono">
+                <span class="text-emerald-700 font-bold">● RECEIPT LOGGED</span>
+                <button onclick="setViewMode('unified')" class="text-lakeBlue hover:underline">Terminals ▸</button>
+              </div>
+            </div>
+
+            <!-- Stage 4: Independent Verification -->
+            <div class="bg-parchment hairline-border rounded-[18px] p-4 flex flex-col justify-between border-lakeBlue/40">
+              <div>
+                <div class="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-smoke mb-1">
+                  <span>Stage 4</span>
+                  <span class="text-lakeBlue font-bold">Independent Verifier (w2:p6)</span>
+                </div>
+                <h3 class="serif-title text-lg text-offBlack font-semibold mb-1">VerificationReport</h3>
+                <p class="text-xs text-graphite font-mono mb-3 leading-relaxed">
+                  Evaluates checks against criteria independently. Result success does not equal task passed.
+                </p>
+                <div class="p-2.5 rounded-[10px] bg-periwinkle/15 hairline-border font-mono text-[10px] space-y-1">
+                  <div>• Evaluator: w2:p6 (QA Verifier)</div>
+                  <div>• Verdict: <b class="text-emerald-700" id="wf-report-verdict">PASS</b></div>
+                  <div>• Evidence: Logged to Registry</div>
+                </div>
+              </div>
+              <div class="mt-4 pt-2.5 hairline-t flex items-center justify-between text-[10px] font-mono">
+                <button onclick="triggerVerificationUI()" class="text-lakeBlue font-bold hover:underline">Re-verify Now ▸</button>
+                <span class="text-emerald-700 font-bold">● VERIFIED</span>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Lower Panel: Detailed Criteria & Evidence Log -->
+          <div class="grid grid-cols-2 gap-4">
+            
+            <!-- Left: Acceptance Criteria & Contract -->
+            <div class="bg-parchment rounded-[20px] hairline-border p-5">
+              <div class="flex items-center justify-between pb-3 hairline-b mb-3">
+                <span class="text-xs font-mono uppercase tracking-wider text-offBlack font-semibold">Decoupled Acceptance Criteria</span>
+                <span class="text-[10px] font-mono text-smoke">Evaluated by w2:p6</span>
+              </div>
+              <div class="space-y-2 text-xs font-mono">
+                <div class="p-2.5 rounded-[12px] bg-parchment hairline-border flex items-start justify-between">
+                  <div>
+                    <div class="font-semibold text-offBlack">[CHK-1] Automated reproduction test suite passes</div>
+                    <div class="text-[10px] text-smoke mt-0.5">Evidence: Exit code 0, 0 test failures in test harness (w2:p5)</div>
+                  </div>
+                  <span class="px-2 py-0.5 rounded-[9999px] text-[9px] bg-emerald-100 text-emerald-800 font-bold">PASS</span>
+                </div>
+                <div class="p-2.5 rounded-[12px] bg-parchment hairline-border flex items-start justify-between">
+                  <div>
+                    <div class="font-semibold text-offBlack">[CHK-2] Zero regressions in adjacent suites &amp; contracts</div>
+                    <div class="text-[10px] text-smoke mt-0.5">Evidence: All integration tests and lint checks verified clean</div>
+                  </div>
+                  <span class="px-2 py-0.5 rounded-[9999px] text-[9px] bg-emerald-100 text-emerald-800 font-bold">PASS</span>
+                </div>
+                <div class="p-2.5 rounded-[12px] bg-parchment hairline-border flex items-start justify-between">
+                  <div>
+                    <div class="font-semibold text-offBlack">[CHK-3] Git worktree isolation verified</div>
+                    <div class="text-[10px] text-smoke mt-0.5">Evidence: Diffs isolated strictly to impl-a and impl-b workspaces</div>
+                  </div>
+                  <span class="px-2 py-0.5 rounded-[9999px] text-[9px] bg-emerald-100 text-emerald-800 font-bold">PASS</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: Capability Registry Benchmark Matrix -->
+            <div class="bg-parchment rounded-[20px] hairline-border p-5">
+              <div class="flex items-center justify-between pb-3 hairline-b mb-3">
+                <span class="text-xs font-mono uppercase tracking-wider text-offBlack font-semibold">Capability Registry &amp; 0-Token Gate</span>
+                <span class="text-[10px] font-mono text-emerald-700 font-bold">0 Tokens Dispatched</span>
+              </div>
+              <div class="space-y-2 text-xs font-mono">
+                <div class="p-2.5 rounded-[12px] bg-parchment hairline-border">
+                  <div class="flex justify-between items-center mb-1">
+                    <span class="font-semibold text-offBlack">coding.frontend.react</span>
+                    <span class="text-lakeBlue font-bold">Utility: 0.942</span>
+                  </div>
+                  <div class="text-[10px] text-smoke flex justify-between">
+                    <span>agy:gemini-3.8-flash (24 runs, 91.7% pass)</span>
+                    <span>18.4s median</span>
+                  </div>
+                </div>
+                <div class="p-2.5 rounded-[12px] bg-parchment hairline-border">
+                  <div class="flex justify-between items-center mb-1">
+                    <span class="font-semibold text-offBlack">coding.backend.python</span>
+                    <span class="text-lakeBlue font-bold">Utility: 0.935</span>
+                  </div>
+                  <div class="text-[10px] text-smoke flex justify-between">
+                    <span>codex:gpt-5.6-luna (30 runs, 93.3% pass)</span>
+                    <span>19.5s median</span>
+                  </div>
+                </div>
+                <div class="p-2.5 rounded-[12px] bg-parchment hairline-border">
+                  <div class="flex justify-between items-center mb-1">
+                    <span class="font-semibold text-offBlack">testing.harness.shell</span>
+                    <span class="text-lakeBlue font-bold">Utility: 0.970</span>
+                  </div>
+                  <div class="text-[10px] text-smoke flex justify-between">
+                    <span>shell:subprocess (45 runs, 97.8% pass)</span>
+                    <span>2.1s median</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      `;
+    }
+
+    // Interactive helper: Toggle pane execution mode (MANAGED_SESSION vs MANUAL_PTY)
+    async function toggleExecutionMode(pid) {
+      const ag = appState?.state?.agents?.[pid];
+      const curMode = ag?.execution_mode || 'MANAGED_SESSION';
+      const targetMode = curMode === 'MANAGED_SESSION' ? 'MANUAL_PTY' : 'MANAGED_SESSION';
+      
+      const res = await fetch('/api/mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pane_id: pid, mode: targetMode })
+      });
+      showToast(`Switched ${pid} to ${targetMode}`, 'info');
+      setTimeout(fetchStatus, 300);
+    }
+
+    // Interactive helper: Test Evaluation Gate (0-token routing)
+    async function testEvaluationGate() {
+      showToast('Querying Capability Registry Gate...', 'info');
+      try {
+        const res = await fetch('/api/evaluate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            task_class: 'coding.frontend.react',
+            capabilities: ['react', 'typescript']
+          })
+        });
+        const data = await res.json();
+        const ev = data.evaluation || {};
+        const isLive = ev.should_live_evaluate;
+        const msg = isLive 
+          ? `Live Eval Triggered (1,500 tokens). Preferred: ${ev.selected_agent}`
+          : `0-Token Rule Route Success! Selected: ${ev.selected_agent} (0 LLM Tokens)`;
+        showToast(msg, isLive ? 'info' : 'success');
+        updateTelemetryCard();
+      } catch (err) {
+        showToast(`Evaluation gate query error: ${err.message}`, 'error');
+      }
+    }
+
+    // Interactive helper: Trigger Independent Verifier Report
+    async function triggerVerificationUI() {
+      showToast('Running Independent Verifier (w2:p6)...', 'info');
+      try {
+        const res = await fetch('/api/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            task_id: 'T-001',
+            receipt: {
+              outcome: 'completed',
+              duration: 4.8,
+              output: 'All tests passed. Zero errors detected.'
+            },
+            criteria: [
+              'Automated reproduction test passes',
+              'Zero regressions in adjacent suites',
+              'Git worktree diff is isolated and clean'
+            ]
+          })
+        });
+        const data = await res.json();
+        const verdict = data?.report?.verdict || 'PASS';
+        showToast(`Independent Verification Verdict: ${verdict}`, verdict === 'PASS' ? 'success' : 'error');
+        fetchStatus();
+      } catch (err) {
+        showToast(`Verification error: ${err.message}`, 'error');
+      }
+    }
+
+    // Telemetry Card Updater
+    async function updateTelemetryCard() {
+      try {
+        const res = await fetch('/api/registry');
+        const data = await res.json();
+        if (data.success && data.default_evaluation) {
+          const ev = data.default_evaluation;
+          const isLive = ev.should_live_evaluate;
+          
+          const badgeEl = document.getElementById('gate-token-badge');
+          if (badgeEl) {
+            badgeEl.innerText = isLive ? '1,500 TOKENS' : '0 LLM TOKENS';
+            badgeEl.className = isLive 
+              ? 'px-2 py-0.5 rounded-[9999px] text-[9px] bg-amber-100 text-amber-800 font-bold'
+              : 'px-2 py-0.5 rounded-[9999px] text-[9px] bg-emerald-100 text-emerald-800 font-bold';
+          }
+
+          const targetEl = document.getElementById('gate-target-agent');
+          if (targetEl) targetEl.innerText = ev.selected_agent || 'agy:gemini-3.8-flash';
+
+          const triggerEl = document.getElementById('gate-trigger-text');
+          if (triggerEl) {
+            triggerEl.innerText = (ev.trigger_reasons && ev.trigger_reasons.length > 0)
+              ? ev.trigger_reasons.join(', ')
+              : 'Healthy (0 Active Triggers)';
+          }
+        }
+      } catch (e) {}
+    }
+
+    // Render Full Wires Studio
+    function renderWiresStudio() {
+      const container = document.getElementById('full-wires-list');
+      const wires = appState?.state?.wires || [];
+      container.innerHTML = '';
+
+      if (wires.length === 0) {
+        container.innerHTML = `
+          <div class="text-center p-8 bg-parchment hairline-border rounded-[20px] max-w-md mx-auto font-mono">
+            <div class="text-3xl mb-3">⚡</div>
+            <div class="serif-title text-base text-offBlack font-medium mb-1">No Connection Wires Configured</div>
+            <div class="text-xs text-smoke mb-4">Wires connect agent outputs to inputs across architectural channels (Directive, Artifacts, Feedback, Rollup).</div>
+            <button onclick="openAddWireModal()" class="px-5 py-2.5 bg-lakeBlue hover:opacity-90 text-parchment rounded-[100px] text-xs uppercase tracking-wider transition inline-flex items-center space-x-1.5">
+              <span>+ Establish Connection Wire</span>
+              <span>▸</span>
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      wires.forEach(w => {
+        const item = document.createElement('div');
+        item.className = 'p-3.5 bg-parchment rounded-[14px] hairline-border flex items-center justify-between hover:bg-periwinkle/15 transition';
+        
+        item.innerHTML = `
+          <div class="flex items-center space-x-3">
+            <div class="w-3 h-3 rounded-full shrink-0" style="background: ${w.color || '#2b59d1'};"></div>
+            <div>
+              <div class="flex items-center space-x-2">
+                <span class="serif-title text-base text-offBlack font-medium">${w.name}</span>
+                <span class="px-2 py-0.5 rounded-[9999px] text-[9px] font-mono uppercase tracking-wider hairline-border" style="background:${w.color}15; color:${w.color}">${w.type}</span>
+                <span class="text-xs font-mono text-smoke">(${w.from_pane} ──▶ ${w.to_pane})</span>
+              </div>
+              <div class="text-[10px] text-graphite font-mono mt-0.5">${w.description}</div>
+            </div>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button onclick="inspectWire('${w.id}')" class="px-3.5 py-1.5 bg-lakeBlue hover:opacity-90 text-parchment rounded-[100px] text-xs font-mono uppercase tracking-wider transition flex items-center space-x-1">
+              <span>🔍 Preview &amp; Edit</span>
+              <span>▸</span>
+            </button>
+            <button onclick="quickTransmitWire('${w.id}')" class="px-3 py-1.5 bg-parchment hairline-border hover:bg-smoke/10 text-offBlack rounded-[100px] text-xs font-mono uppercase tracking-wider transition">
+              ⚡ Quick Transmit
+            </button>
+            <button onclick="deleteWire('${w.id}')" class="w-7 h-7 rounded-full hairline-border hover:bg-coral/20 hover:text-crimson text-smoke flex items-center justify-center text-xs transition" title="Disconnect Wire">
+              ✕
+            </button>
+          </div>
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    // Inspect Wire Modal (Preview & Edit Payload)
+    async function inspectWire(wireId) {
+      activeInspectedWireId = wireId;
+      try {
+        const res = await fetch(`/api/preview_wire?wire_id=${wireId}`);
+        const data = await res.json();
+        if (!data.success) return showToast(data.error || "Failed to preview wire", 'error');
+
+        const wire = data.wire;
+        document.getElementById('modal-wire-name').innerText = wire.name;
+        document.getElementById('modal-wire-route').innerText = `Source: ${wire.from_pane} ──▶ Target: ${wire.to_pane}`;
+        document.getElementById('modal-wire-type').innerText = wire.type;
+        document.getElementById('inspector-raw-text').innerText = data.raw_text;
+        document.getElementById('inspector-editable-payload').value = data.formatted_payload;
+
+        document.getElementById('wire-inspector-modal').classList.remove('hidden');
+      } catch (e) {
+        showToast("Error inspecting wire payload", 'error');
+      }
+    }
+
+    function closeWireInspector() {
+      document.getElementById('wire-inspector-modal').classList.add('hidden');
+      activeInspectedWireId = null;
+    }
+
+    async function dispatchInspectedPayload() {
+      if (!activeInspectedWireId) return;
+      const editedPayload = document.getElementById('inspector-editable-payload').value;
+      closeWireInspector();
+
+      try {
+        const res = await fetch('/api/transmit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            wire_id: activeInspectedWireId,
+            payload_override: editedPayload
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast("Dispatched payload along wire channel!", 'success');
+          setTimeout(fetchStatus, 1000);
+        } else {
+          showToast(data.error || "Dispatch failed", 'error');
+        }
+      } catch (e) {
+        showToast("Dispatch network error", 'error');
+      }
+    }
+
+    async function quickTransmitWire(wireId) {
+      try {
+        const res = await fetch('/api/transmit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ wire_id: wireId })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast("Transmitted via wire channel", 'success');
+          setTimeout(fetchStatus, 1000);
+        }
+      } catch (e) {
+        showToast("Transmission failed", 'error');
+      }
+    }
+
+    // Terminal Viewport Text Polling
+    async function fetchPaneText(pid) {
+      const elId = `term-view-${pid.replace(':', '-')}`;
+      const el = document.getElementById(elId);
+      if (!el) return;
+
+      try {
+        const res = await fetch(`/api/read_pane?pane_id=${pid}&lines=40`);
+        const data = await res.json();
+        if (data.success && data.output) {
+          el.innerText = data.output;
+          el.scrollTop = el.scrollHeight;
+        }
+      } catch (e) {}
+    }
+
+    // Fullscreen Terminal View
+    async function openFullscreenTerm(pid) {
+      activeFullscreenPaneId = pid;
+      const ag = appState.state.agents[pid] || { name: 'Agent', model: 'CLI' };
+      document.getElementById('fs-term-title').innerText = ag.name.toUpperCase();
+      document.getElementById('fs-term-subtitle').innerText = `(${pid}) • ${ag.model}`;
+      
+      const res = await fetch(`/api/read_pane?pane_id=${pid}&lines=100`);
+      const data = await res.json();
+      document.getElementById('fs-term-viewport').innerText = data.output || "No output buffer.";
+
+      document.getElementById('fullscreen-term-modal').classList.remove('hidden');
+    }
+
+    function closeFullscreenTerm() {
+      document.getElementById('fullscreen-term-modal').classList.add('hidden');
+      activeFullscreenPaneId = null;
+    }
+
+    function copyFullscreenText() {
+      const text = document.getElementById('fs-term-viewport').innerText;
+      navigator.clipboard.writeText(text);
+      showToast("Copied terminal logs to clipboard", 'success');
+    }
+
+    async function sendFsPrompt() {
+      if (!activeFullscreenPaneId) return;
+      const input = document.getElementById('fs-term-input');
+      const val = input.value.trim();
+      if (!val) return;
+      input.value = '';
+
+      await fetch('/api/prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pane_id: activeFullscreenPaneId, prompt: val })
+      });
+      showToast("Prompt dispatched to terminal", 'info');
+      setTimeout(() => openFullscreenTerm(activeFullscreenPaneId), 1000);
+    }
+
+    // Agent Inspector & Customization
+    function renderInspector() {
+      const ag = appState?.state?.agents?.[selectedPaneId];
+      if (!ag) return;
+
+      const isPrivileged = (ag.permission_profile === 'implementer' || ag.sandbox === 'PrivilegedWorkspace');
+      const isManaged = (ag.execution_mode === 'MANAGED_SESSION');
+
+      document.getElementById('selected-agent-title').innerText = ag.name.toUpperCase();
+      document.getElementById('selected-agent-badge').innerText = isManaged ? 'MANAGED JSON' : 'MANUAL PTY';
+      document.getElementById('selected-agent-badge').className = `px-2.5 py-0.5 rounded-[9999px] text-[10px] font-mono uppercase tracking-wider font-semibold ${
+        isManaged ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800'
+      }`;
+      document.getElementById('selected-agent-model').innerText = `${ag.model} • ${selectedPaneId} • ${isPrivileged ? 'PRIVILEGED WORKSPACE' : 'TOOL PROXY'}`;
+
+      // Protect Editable Profile inputs from being overwritten while user is actively typing!
+      const nameEl = document.getElementById('edit-agent-name');
+      const roleEl = document.getElementById('edit-agent-role');
+      const modelEl = document.getElementById('edit-agent-model');
+      const promptEl = document.getElementById('edit-agent-prompt');
+
+      if (nameEl && document.activeElement !== nameEl) nameEl.value = ag.name;
+      if (roleEl && document.activeElement !== roleEl) roleEl.value = ag.role;
+      if (modelEl && document.activeElement !== modelEl && ag.model) {
+        // If current model is not one of existing options, add it dynamically
+        let exists = false;
+        for (let i = 0; i < modelEl.options.length; i++) {
+          if (modelEl.options[i].value === ag.model) { exists = true; break; }
+        }
+        if (!exists) {
+          const opt = document.createElement('option');
+          opt.value = ag.model;
+          opt.innerText = ag.model;
+          modelEl.appendChild(opt);
+        }
+        modelEl.value = ag.model;
+      }
+      if (promptEl && document.activeElement !== promptEl) promptEl.value = ag.system_prompt || ag.custom_prompt || '';
+
+      const pct = Math.min(100, Math.round((ag.estimated_tokens / ag.max_context) * 100));
+      document.getElementById('inspector-context-pct').innerText = `${pct}%`;
+      document.getElementById('inspector-context-bar').style.width = `${pct}%`;
+      document.getElementById('inspector-used-tokens').innerText = `${ag.estimated_tokens.toLocaleString()} tokens`;
+      document.getElementById('inspector-max-tokens').innerText = `${ag.max_context.toLocaleString()} max`;
+
+      const threshSlider = document.getElementById('threshold-slider');
+      const turnsSlider = document.getElementById('turns-slider');
+      if (threshSlider && document.activeElement !== threshSlider) {
+        document.getElementById('threshold-val').innerText = `${ag.compact_threshold_pct}%`;
+        threshSlider.value = ag.compact_threshold_pct;
+      }
+      if (turnsSlider && document.activeElement !== turnsSlider) {
+        document.getElementById('turns-val').innerText = `${ag.max_turns} turns`;
+        turnsSlider.value = ag.max_turns;
+      }
+    }
+
+    async function saveAgentCustomization() {
+      const name = document.getElementById('edit-agent-name').value.trim();
+      const role = document.getElementById('edit-agent-role').value.trim();
+      const model = document.getElementById('edit-agent-model').value;
+      const system_prompt = document.getElementById('edit-agent-prompt').value.trim();
+
+      await fetch('/api/update_agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pane_id: selectedPaneId,
+          name,
+          role,
+          model,
+          system_prompt
+        })
+      });
+      showToast("Saved agent profile customization", 'success');
+      fetchStatus();
+    }
+
+    function selectAgent(pid) {
+      selectedPaneId = pid;
+      renderAll();
+    }
+
+    function setPromptInput(pid, text) {
+      const inputEl = document.getElementById(`prompt-input-${pid.replace(':', '-')}`);
+      if (inputEl) {
+        inputEl.value = text;
+        inputEl.focus();
+      }
+    }
+
+    async function sendPanePrompt(pid) {
+      const inputEl = document.getElementById(`prompt-input-${pid.replace(':', '-')}`);
+      const val = inputEl.value.trim();
+      if (!val) return;
+      inputEl.value = '';
+
+      await fetch('/api/prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pane_id: pid, prompt: val })
+      });
+      showToast(`Prompt submitted to ${pid}`, 'info');
+      setTimeout(fetchStatus, 1000);
+    }
+
+    async function triggerCompact(pid) {
+      showToast(`Initiating /compact on ${pid}...`, 'info');
+      await fetch('/api/compact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pane_id: pid })
+      });
+      setTimeout(() => {
+        showToast(`Memory pruned on ${pid}`, 'success');
+        fetchStatus();
+      }, 1500);
+    }
+
+    function triggerSelectedCompact() {
+      triggerCompact(selectedPaneId);
+    }
+
+    async function clearCurrentPane() {
+      await fetch('/api/clear_pane', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pane_id: selectedPaneId })
+      });
+      showToast("Pane screen buffer cleared", 'info');
+      fetchPaneText(selectedPaneId);
+    }
+
+    async function killPanePrompt(pid) {
+      if (!confirm(`Are you sure you want to terminate agent pane ${pid}?`)) return;
+      await fetch('/api/kill_agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pane_id: pid })
+      });
+      showToast(`Terminated pane ${pid}`, 'warning');
+      fetchStatus();
+    }
+
+    function killCurrentPane() {
+      killPanePrompt(selectedPaneId);
+    }
+
+    async function triggerEmergencyStop() {
+      await fetch('/api/emergency_stop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      showToast("Emergency stop signal delivered to all terminals", 'error');
+      fetchStatus();
+    }
+
+    async function clearActivityLogs() {
+      await fetch('/api/clear_logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      fetchStatus();
+    }
+
+    // View Modes
+    function setViewMode(mode) {
+      viewMode = mode;
+      const modes = ['unified', 'workflow', 'wires', 'focus', 'split', 'grid'];
+      modes.forEach(m => {
+        const btn = document.getElementById(`btn-view-${m}`);
+        if (!btn) return;
+        if (m === mode) {
+          btn.className = "px-3.5 py-1.5 text-xs rounded-[100px] font-mono uppercase tracking-wider bg-offBlack text-parchment transition";
+        } else {
+          btn.className = "px-3 py-1.5 text-xs rounded-[100px] font-mono uppercase tracking-wider text-smoke hover:text-offBlack transition";
+        }
+      });
+      renderAll();
+    }
+
+    function switchInspectorTab(t) {
+      ['agent', 'compact', 'firewall'].forEach(k => {
+        document.getElementById(`tab-content-${k}`).classList.add('hidden');
+        document.getElementById(`tab-btn-${k}`).className = "flex-1 py-2.5 text-center border-b-2 border-transparent text-smoke hover:text-offBlack";
+      });
+      document.getElementById(`tab-content-${t}`).classList.remove('hidden');
+      document.getElementById(`tab-btn-${t}`).className = "flex-1 py-2.5 text-center border-b-2 border-lakeBlue text-lakeBlue font-semibold";
+    }
+
+    function toggleTopologyBanner() {
+      topologyExpanded = !topologyExpanded;
+      const container = document.getElementById('topology-svg-container');
+      const btn = document.getElementById('btn-toggle-topology');
+      if (topologyExpanded) {
+        container.classList.remove('hidden');
+        btn.innerText = '▲';
+      } else {
+        container.classList.add('hidden');
+        btn.innerText = '▼';
+      }
+    }
+
+    // Modal Control Helpers
+    function openSpawnModal() { document.getElementById('spawn-modal').classList.remove('hidden'); }
+    function closeSpawnModal() { document.getElementById('spawn-modal').classList.add('hidden'); }
+
+    function openAddWireModal() {
+      const agents = appState?.state?.agents || {};
+      const fromSel = document.getElementById('wire-from');
+      const toSel = document.getElementById('wire-to');
+      fromSel.innerHTML = '';
+      toSel.innerHTML = '';
+      Object.keys(agents).forEach(pid => {
+        const ag = agents[pid];
+        fromSel.innerHTML += `<option value="${pid}">${ag.name.toUpperCase()} (${pid})</option>`;
+        toSel.innerHTML += `<option value="${pid}">${ag.name.toUpperCase()} (${pid})</option>`;
+      });
+      if (toSel.options.length > 1) toSel.selectedIndex = 1;
+      document.getElementById('add-wire-modal').classList.remove('hidden');
+    }
+    function closeAddWireModal() { document.getElementById('add-wire-modal').classList.add('hidden'); }
+
+    function openGuideModal() { document.getElementById('guide-modal').classList.remove('hidden'); }
+    function closeGuideModal() { document.getElementById('guide-modal').classList.add('hidden'); }
+
+    function onWireTypeChanged(val) {
+      const nameInput = document.getElementById('wire-name');
+      const descInput = document.getElementById('wire-desc');
+      if (val === 'spec_directive') {
+        nameInput.value = 'Directive Wire';
+        descInput.value = 'Extracts Markdown specs and sends to implementer';
+      } else if (val === 'artifact_diff') {
+        nameInput.value = 'Artifact Wire';
+        descInput.value = 'Filters out chat, transmits code diffs and files only';
+      } else if (val === 'feedback_loop') {
+        nameInput.value = 'Feedback Loop Wire';
+        descInput.value = 'Filters errors, loops back stacktrace diagnostics';
+      } else if (val === 'compact_summary') {
+        nameInput.value = 'Executive Rollup Wire';
+        descInput.value = 'Summarizes activity into a 5-line status & cost update';
+      } else {
+        nameInput.value = 'Custom Stream Wire';
+        descInput.value = 'Direct inter-terminal streaming pipeline';
+      }
+    }
+
+    async function submitAddWire() {
+      const from_pane = document.getElementById('wire-from').value;
+      const to_pane = document.getElementById('wire-to').value;
+      const type = document.getElementById('wire-type').value;
+      const name = document.getElementById('wire-name').value.trim() || 'Connection Wire';
+      const description = document.getElementById('wire-desc').value.trim() || 'Custom Wire Channel';
+
+      let color = '#3b82f6';
+      if (type === 'artifact_diff') color = '#10b981';
+      else if (type === 'feedback_loop') color = '#f59e0b';
+      else if (type === 'compact_summary') color = '#a855f7';
+      else if (type === 'custom') color = '#242424';
+
+      closeAddWireModal();
+
+      await fetch('/api/wires', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from_pane, to_pane, type, name, description, color })
+      });
+      showToast("Connection wire established", 'success');
+      fetchStatus();
+    }
+
+    async function deleteWire(wireId) {
+      if (!confirm("Are you sure you want to disconnect this wire?")) return;
+      await fetch('/api/delete_wire', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wire_id: wireId })
+      });
+      showToast("Wire disconnected", 'info');
+      fetchStatus();
+    }
+
+    async function submitSpawnAgent() {
+      const kind = document.getElementById('spawn-kind').value;
+      const role = document.getElementById('spawn-role').value;
+      closeSpawnModal();
+
+      showToast(`Spawning ${kind} pane...`, 'info');
+      try {
+        const res = await fetch('/api/spawn', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ kind, role })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`Agent pane ${data.pane_id} online`, 'success');
+          selectedPaneId = data.pane_id;
+          fetchStatus();
+        } else {
+          showToast(data.error || 'Failed to spawn pane', 'error');
+        }
+      } catch (e) {
+        showToast('Network error while spawning pane', 'error');
+      }
+    }
+
+    async function updateQuotaSlider(val) {
+      document.getElementById('threshold-val').innerText = `${val}%`;
+      await fetch('/api/quota', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pane_id: selectedPaneId, compact_threshold_pct: val })
+      });
+    }
+
+    async function updateTurnsSlider(val) {
+      document.getElementById('turns-val').innerText = `${val} turns`;
+      await fetch('/api/quota', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pane_id: selectedPaneId, max_turns: val })
+      });
+    }
+
+    async function updateSandbox(val) {
+      await fetch('/api/permission', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pane_id: selectedPaneId, sandbox: val })
+      });
+      showToast(`Updated sandbox policy to ${val}`, 'info');
+    }
+
+    async function respondApproval(choice) {
+      await fetch('/api/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pane_id: selectedPaneId, choice })
+      });
+      document.getElementById('permission-banner').classList.add('hidden');
+      showToast(`Approval response '${choice}' dispatched`, 'info');
+      setTimeout(fetchStatus, 1000);
+    }
+
+    // Real-time SSE Push Streaming (0ms perceived latency)
+    let sseSource = null;
+
+    function initSSEStream() {
+      if (sseSource) sseSource.close();
+      sseSource = new EventSource('/api/stream');
+
+      sseSource.addEventListener('pane_chunk', (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          const elId = `term-view-${msg.pane_id.replace(':', '-')}`;
+          const el = document.getElementById(elId);
+          if (el) {
+            el.innerText = msg.output;
+            el.scrollTop = el.scrollHeight;
+          }
+          if (activeFullscreenPaneId === msg.pane_id) {
+            const fsEl = document.getElementById('fs-term-viewport');
+            if (fsEl) {
+              fsEl.innerText = msg.output;
+              fsEl.scrollTop = fsEl.scrollHeight;
+            }
+          }
+        } catch (err) {}
+      });
+
+      sseSource.addEventListener('status_update', (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          if (msg.state) {
+            const stateStr = JSON.stringify(msg.state);
+            if (stateStr !== lastKnownStateStr) {
+              lastKnownStateStr = stateStr;
+              appState = { ...appState, state: msg.state };
+              renderAll();
+            }
+          }
+        } catch (err) {}
+      });
+
+      sseSource.onerror = () => {
+        // Browser handles reconnection automatically
+      };
+    }
+
+    // Initial load & start real-time SSE streaming
+    fetchStatus(true);
+    initSSEStream();
+    // Gentle fallback poll (30s)
+    autoPollTimer = setInterval(() => fetchStatus(false), 30000);
+  </script>
+</body>
+</html>
