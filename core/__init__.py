@@ -3,4 +3,6 @@ from .lifecycle import AgentState, LifecycleEventType, AgentLifecycleEvent, Turn
 from .adapters import BaseAgentAdapter, AgyNativeAdapter, CodexNativeAdapter, ShellNativeAdapter
 from .orchestrator import MultiAgentMeshOrchestrator
 from .user import User, UserManager, UserRole, UserSession
+from .pty_runtime import PtyRuntimeAdapter, LocalPosixPtyAdapter, HerdrCorePtyAdapter, PtySessionConfig, PtySessionState
+
 
