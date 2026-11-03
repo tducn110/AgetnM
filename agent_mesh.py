@@ -47,7 +47,7 @@ def api_post(endpoint, payload):
         method="POST"
     )
     try:
-        with urllib.request.urlopen(req, timeout=15) as res:
+        with urllib.request.urlopen(req, timeout=120) as res:
             return json.loads(res.read().decode("utf-8"))
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -255,11 +255,15 @@ def main():
     verify_parser.add_argument("task_id", help="Task ID (e.g. T-001)")
     verify_parser.add_argument("--criteria", help="Comma-separated criteria", default="Reproduction test passes,No regression")
     verify_parser.add_argument("--outcome", default="completed", choices=["completed", "failed"])
+    verify_parser.add_argument("--fail-test", action="store_true", help="Simulate test failure / assertion error in receipt")
+    verify_parser.add_argument("--fail-artifact", action="store_true", help="Simulate broken artifact with conflict markers")
+    verify_parser.add_argument("--artifacts", nargs="*", default=None, help="Paths to artifact files to verify")
 
     # Evaluate command (Capability registry 0-token routing gate)
     eval_parser = subparsers.add_parser("evaluate", help="Query EvaluationGate for task route")
     eval_parser.add_argument("--task-class", default="coding.frontend.react", help="Task signature class")
     eval_parser.add_argument("--capabilities", nargs="*", default=["react", "typescript"], help="Required capabilities")
+    eval_parser.add_argument("--live", action="store_true", help="Execute live LLM evaluation probe and measure actual tokens")
 
     # Registry command
     subparsers.add_parser("registry", help="Print capability registry benchmark data")
@@ -296,14 +300,35 @@ def main():
         print(json.dumps(res, indent=2))
     elif args.command == "verify":
         crit_list = [c.strip() for c in args.criteria.split(",") if c.strip()]
-        res = api_post("/api/verify", {
+        sim_output = "Exit code 0, all 5 automated unit tests passed"
+        sim_exit = 0
+        if args.fail_test:
+            sim_output = "AssertionError: Expected status 200, got 500\nFAILED (failures=1)"
+            sim_exit = 1
+        elif args.fail_artifact:
+            sim_output = "<<<<<<< HEAD\nconst broken = true;\n=======\nconst broken = false;\n>>>>>>> main"
+
+        payload = {
             "task_id": args.task_id,
-            "receipt": {"outcome": args.outcome, "duration": 5.0, "output": "Exit code 0, checks passed"},
-            "criteria": crit_list
-        })
+            "receipt": {
+                "outcome": args.outcome,
+                "duration": 4.2,
+                "output": sim_output,
+                "exit_code": sim_exit,
+                "session_id": "w2:p3",
+                "attempt_id": "A1"
+            },
+            "criteria": crit_list,
+            "artifacts": args.artifacts
+        }
+        res = api_post("/api/verify", payload)
         print(json.dumps(res, indent=2))
     elif args.command == "evaluate":
-        res = api_post("/api/evaluate", {"task_class": args.task_class, "capabilities": args.capabilities})
+        res = api_post("/api/evaluate", {
+            "task_class": args.task_class,
+            "capabilities": args.capabilities,
+            "live": args.live
+        })
         print(json.dumps(res, indent=2))
     elif args.command == "registry":
         res = api_get("/api/registry")

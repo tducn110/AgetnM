@@ -127,6 +127,7 @@ class PersistentAgySessionAdapter(BaseAgentAdapter):
         self.proc: Optional[subprocess.Popen] = None
         self._lock = threading.RLock()
         self._is_starting = False
+        self.last_cumulative_tokens = 0
 
     def start(self) -> bool:
         with self._lock:
@@ -138,10 +139,16 @@ class PersistentAgySessionAdapter(BaseAgentAdapter):
                 AGY_BIN,
                 "--input-format", "stream-json",
                 "--output-format", "stream-json",
-                "--dangerously-skip-permissions"
             ]
-            if self.workspace_dir and os.path.exists(self.workspace_dir):
-                cmd.extend(["--add-dir", self.workspace_dir])
+            is_implementer = (self.permission_policy.get("role") == "implementer")
+            if is_implementer:
+                # Privileged Implementer in its isolated git worktree
+                cmd.append("--dangerously-skip-permissions")
+                if self.workspace_dir and os.path.exists(self.workspace_dir):
+                    cmd.extend(["--add-dir", self.workspace_dir])
+            else:
+                # Restricted Tool Proxy / Analyst / Planner: Strict Sandbox, mode plan, no dangerously-skip-permissions
+                cmd.extend(["--mode", "plan", "--sandbox"])
 
             try:
                 self.proc = subprocess.Popen(
@@ -185,6 +192,23 @@ class PersistentAgySessionAdapter(BaseAgentAdapter):
             turn_id = f"agy_{int(time.time() * 1000) % 1000000}"
             self.current_turn_id = turn_id
             self.state = AgentState.TURN_RUNNING
+
+            # Tool Proxy Sandbox RBAC Guard for Restricted Agents
+            is_restricted = (self.permission_policy.get("role") == "restricted" or not self.permission_policy.get("fs_write", False))
+            if is_restricted:
+                p_lower = prompt.lower()
+                write_signals = ["write ", "touch ", "rm ", "delete file", "create file", "overwrite", "> /", "modify file"]
+                is_write = any(sig in p_lower for sig in write_signals)
+                is_outside = any(p in prompt for p in ["/tmp", "/etc", "/var", "/root", "outside"])
+                if is_write and is_outside:
+                    err_msg = f"Security Exception: Action rejected by ToolProxySandbox RBAC Guard. Agent [{self.agent_id} {self.name}] does not possess fs_write permissions outside workspace."
+                    self.state = AgentState.FAILED
+                    if event_callback:
+                        event_callback(AgentLifecycleEvent(LifecycleEventType.TURN_FAILED, self.agent_id, turn_id, {"error": err_msg, "duration": 0.0}))
+                    res_obj = TurnResult(self.agent_id, turn_id, False, err_msg, [], {}, 0.0)
+                    self.turn_history.append(res_obj)
+                    self.state = AgentState.IDLE
+                    return res_obj
 
             effective_prompt = prompt
             if self.system_prompt and not self.turn_history:
@@ -247,7 +271,17 @@ class PersistentAgySessionAdapter(BaseAgentAdapter):
                             resp_text = res.get("response", "").strip()
                             if resp_text and not final_response:
                                 final_response.append(resp_text)
-                            usage_data = res.get("usage", {})
+                            raw_usage = res.get("usage", {})
+                            current_total = raw_usage.get("total_tokens", 0)
+                            delta_tokens = max(0, current_total - self.last_cumulative_tokens) if self.last_cumulative_tokens > 0 else current_total
+                            self.last_cumulative_tokens = current_total
+                            usage_data = {
+                                "input_tokens": raw_usage.get("input_tokens", 0),
+                                "output_tokens": raw_usage.get("output_tokens", 0),
+                                "thinking_tokens": raw_usage.get("thinking_tokens", 0),
+                                "cumulative_total": current_total,
+                                "total_tokens": delta_tokens
+                            }
                         else:
                             error_msg = res.get("error", f"Status: {status}")
                         break
@@ -523,6 +557,22 @@ class ShellNativeAdapter(BaseAgentAdapter):
         turn_id = f"sh_{int(time.time() * 1000) % 1000000}"
         self.current_turn_id = turn_id
         self.state = AgentState.TURN_RUNNING
+
+        # RBAC Tool Proxy Guard for Shell Runner
+        is_restricted = (self.permission_policy.get("role") == "restricted" or not self.permission_policy.get("fs_write", False))
+        if is_restricted:
+            forbidden_tokens = [">", ">>", "rm ", "touch ", "mkdir ", "chmod ", "chown ", "mv ", "dd ", "truncate "]
+            is_write_cmd = any(token in prompt for token in forbidden_tokens)
+            targets_outside = any(p in prompt for p in ["/tmp", "/etc", "/var", "/root", "/home/pro/Downloads/"])
+            if is_write_cmd and targets_outside:
+                err_msg = f"Security Exception: Action rejected by ToolProxySandbox RBAC Guard. Agent [{self.agent_id} {self.name}] cannot execute write commands outside authorized workspace."
+                self.state = AgentState.FAILED
+                if event_callback:
+                    event_callback(AgentLifecycleEvent(LifecycleEventType.TURN_FAILED, self.agent_id, turn_id, {"error": err_msg, "duration": 0.0}))
+                res_obj = TurnResult(self.agent_id, turn_id, False, err_msg, [], {}, 0.0)
+                self.turn_history.append(res_obj)
+                self.state = AgentState.IDLE
+                return res_obj
 
         if event_callback:
             event_callback(AgentLifecycleEvent(

@@ -128,13 +128,18 @@ class MeshRequestHandler(BaseHTTPRequestHandler):
         elif path == "/api/evaluate":
             task_class = payload.get("task_class", "coding.frontend.react")
             capabilities = payload.get("capabilities", ["react", "typescript"])
-            decision = orchestrator.eval_gate.evaluate_task_route(task_class, capabilities)
+            is_live = payload.get("live", False)
+            if is_live:
+                decision = orchestrator.eval_gate.run_live_evaluation(orchestrator, task_class, capabilities)
+            else:
+                decision = orchestrator.eval_gate.evaluate_task_route(task_class, capabilities)
             self.respond_json({"success": True, "evaluation": decision})
         elif path == "/api/verify":
             task_id = payload.get("task_id", "T-01")
             receipt = payload.get("receipt", {})
             criteria = payload.get("criteria", ["Reproduction test passes", "No regression"])
-            report = orchestrator.verify_task_execution(task_id, receipt, criteria)
+            artifacts = payload.get("artifacts", None)
+            report = orchestrator.verify_task_execution(task_id, receipt, criteria, artifacts)
             self.respond_json({"success": True, "report": report})
         elif path == "/api/mode":
             pane_id = payload.get("pane_id")

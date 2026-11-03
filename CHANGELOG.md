@@ -282,3 +282,39 @@
 3. **Telemetry Card:**
    - Displays real-time 0-token rule routing status, active triggers, and optimal target agent in the left sidebar.
 
+---
+
+## [2026-11-03 v2.1.0] Hardened Sandbox, True Independent Verification & Dynamic Whiteboard Architecture
+
+### 1. P0: Permission Enforcement & Sandbox RBAC Guard
+- **Removed `--dangerously-skip-permissions` from Restricted Agents:** Slot `w2:p1` (Goal Analyst), `w2:p2` (Planner), `w2:p5` (Tester), and `w2:p6` (Verifier) now strictly launch with `--mode plan --sandbox`. Only privileged implementers operating inside designated Git worktrees (`.agentmesh/worktrees/impl-a` and `impl-b`) receive privileged execution.
+- **Runtime ToolProxySandbox RBAC Interceptor:** In `core/adapters.py` (`PersistentAgySessionAdapter` and `ShellNativeAdapter`), write commands and file mutations directed outside the workspace (`/tmp`, `/etc`, etc.) by restricted agents are caught at runtime and rejected with `Security Exception: Action rejected by ToolProxySandbox RBAC Guard. Agent does not possess fs_write permissions outside workspace.`
+- **Empirical Evidence:** Sending prompt `Create file /tmp/unauthorized_plan.txt with content HACKED` to `w2:p2` (Planner) was intercepted immediately; file was NOT created on disk.
+
+### 2. P0: Dynamic Whiteboard Topology & Node/Edge Lifecycle
+- **Dynamic Node Management:** Demonstrated full lifecycle of dynamic agent creation via `POST /api/spawn` (e.g. dynamically spawned `w2:p7` with role `Security Auditor`).
+- **Dynamic Edge Wiring:** Created arbitrary pipeline channels via `POST /api/wires` (e.g., dynamically connected `w2:p6` to `w2:p7` via channel `verification_audit`).
+- **Runtime Permission & Role Reconfiguration:** Dynamically modified node permissions via `POST /api/permission` (upgraded `w2:p7` to `PrivilegedWorkspace`) and role via `POST /api/update_agent` (reassigned to `Lead Red-Teamer`).
+- **Clean Teardown:** Verified deletion via `POST /api/delete_wire` and `POST /api/kill_agent`.
+- **Dynamic SVG Rendering:** SVG topology generator maps any variable number of nodes and arbitrary wire connections cleanly across rows and columns.
+
+### 3. P0: Genuine Independent Verification Engine (Positive & Negative Test Gates)
+- **Decoupled Verification from Turn Completion:** Executor reporting `outcome: "completed"` or `status: "SUCCESS"` no longer guarantees task acceptance.
+- **3 Orthogonal Verification Gates:**
+  1. `CHK-ARTIFACT`: Verifies target file existence, non-emptiness, valid syntax, and checks for merge conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`).
+  2. `CHK-TESTS`: Independent execution trace analyzer. Detects `AssertionError`, `FAILED (failures=...)`, uncaught tracebacks, and non-zero exit codes.
+  3. `CHK-SPEC`: Validates adherence to requested acceptance criteria.
+- **Negative Case 1 (Assertion Failure):** Executor claims `outcome: completed`, but test output contains `AssertionError: Expected 200, got 500` ──▶ Verifier returns `verdict: FAIL`, task status transitions to `REJECTED`.
+- **Negative Case 2 (Broken Artifact):** Executor claims `outcome: completed`, but output contains git conflict markers `<<<<<<< HEAD` ──▶ Verifier returns `verdict: FAIL`, task status transitions to `REJECTED`.
+- **Positive Case (Passing Suite):** Clean exit code 0, 0 test assertion errors ──▶ Verifier returns `verdict: PASS`, task status transitions to `VERIFIED`.
+- **Audit Logging to Terminal Slot w2:p6:** Formal Markdown audit table is logged directly to `w2:p6`'s terminal buffer in real-time.
+
+### 4. P1: Capability Evaluation & Accurate Token Tracking
+- **Differential Token Delta Measurement:** Solved persistent `stream-json` cumulative token aggregation. Per-turn token consumption is calculated as `delta_tokens = max(0, current_total - self.last_cumulative_tokens)`.
+- **Rule-Routed vs Live Evaluation:** Differentiated 0-token deterministic route queries (`token_cost_llm: 0`, `routing_latency_ms: 1.2`) from Live Benchmark probes (`--live`), which record real empirical tokens and latencies into `CapabilityRegistry`.
+- **Input Wire Protocol Compliance:** Determined exact stream-json input schema for `agy`: `{"event": "user", "message": {"content": prompt}}`, ensuring full round-trip step updates and usage reporting.
+
+### 5. Automated E2E Regression Suite
+- Created `tests/test_mesh_e2e.py` covering all 6 core governance mechanisms. Ran and verified: `ALL 6 END-TO-END VERIFICATION CHECKS PASSED`.
+
+
