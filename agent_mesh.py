@@ -16,8 +16,40 @@ import argparse
 import select
 import termios
 import tty
+import getpass
 
 API_BASE = "http://127.0.0.1:8420"
+AUTH_TOKEN_FILE = os.path.expanduser("~/.config/agent-mesh/auth_token")
+
+
+def get_saved_token():
+    if os.path.exists(AUTH_TOKEN_FILE):
+        try:
+            with open(AUTH_TOKEN_FILE, "r") as f:
+                token = f.read().strip()
+                if token:
+                    return token
+        except Exception:
+            pass
+    return None
+
+
+def save_token(token):
+    os.makedirs(os.path.dirname(AUTH_TOKEN_FILE), exist_ok=True)
+    with open(AUTH_TOKEN_FILE, "w") as f:
+        f.write(token.strip())
+    try:
+        os.chmod(AUTH_TOKEN_FILE, 0o600)
+    except Exception:
+        pass
+
+
+def clear_saved_token():
+    if os.path.exists(AUTH_TOKEN_FILE):
+        try:
+            os.remove(AUTH_TOKEN_FILE)
+        except Exception:
+            pass
 
 
 def is_server_reachable():
@@ -29,26 +61,46 @@ def is_server_reachable():
         return False
 
 
-def api_get(endpoint):
-    req = urllib.request.Request(f"{API_BASE}{endpoint}", method="GET")
+def api_get(endpoint, token=None):
+    if token is None:
+        token = get_saved_token()
+    headers = {}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(f"{API_BASE}{endpoint}", headers=headers, method="GET")
     try:
         with urllib.request.urlopen(req, timeout=10) as res:
             return json.loads(res.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        try:
+            return json.loads(e.read().decode("utf-8"))
+        except Exception:
+            return {"success": False, "error": f"HTTP {e.code}: {e.reason}"}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
 
-def api_post(endpoint, payload):
+def api_post(endpoint, payload, token=None):
+    if token is None:
+        token = get_saved_token()
     data = json.dumps(payload).encode("utf-8")
+    headers = {"Content-Type": "application/json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     req = urllib.request.Request(
         f"{API_BASE}{endpoint}",
         data=data,
-        headers={"Content-Type": "application/json"},
+        headers=headers,
         method="POST"
     )
     try:
         with urllib.request.urlopen(req, timeout=120) as res:
             return json.loads(res.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        try:
+            return json.loads(e.read().decode("utf-8"))
+        except Exception:
+            return {"success": False, "error": f"HTTP {e.code}: {e.reason}"}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
@@ -287,6 +339,43 @@ def main():
     replay_parser = subparsers.add_parser("replay", help="Replay session from event log")
     replay_parser.add_argument("session_id", help="Target session ID")
 
+    # User command
+    user_parser = subparsers.add_parser("user", help="User and Authentication Management")
+    user_subparsers = user_parser.add_subparsers(dest="user_action")
+
+    # user login
+    user_login_parser = user_subparsers.add_parser("login", help="Log in with credentials")
+    user_login_parser.add_argument("username", help="Username or email")
+    user_login_parser.add_argument("--password", "-p", help="Account password (prompted if omitted)")
+
+    # user whoami
+    user_subparsers.add_parser("whoami", help="Check current logged in user")
+
+    # user register
+    user_reg_parser = user_subparsers.add_parser("register", help="Register a new user")
+    user_reg_parser.add_argument("username", help="New username")
+    user_reg_parser.add_argument("email", help="User email")
+    user_reg_parser.add_argument("password", help="Account password")
+    user_reg_parser.add_argument("--role", default="viewer", choices=["admin", "operator", "viewer"], help="Assigned role")
+
+    # user list
+    user_subparsers.add_parser("list", help="List all registered users (Admin/Operator)")
+
+    # user update
+    user_update_parser = user_subparsers.add_parser("update", help="Update user attributes (Admin)")
+    user_update_parser.add_argument("user_id", help="Target user ID")
+    user_update_parser.add_argument("--email", help="New email")
+    user_update_parser.add_argument("--role", choices=["admin", "operator", "viewer"], help="New role")
+    user_update_parser.add_argument("--status", choices=["active", "suspended"], help="New status")
+    user_update_parser.add_argument("--password", help="New password")
+
+    # user delete
+    user_del_parser = user_subparsers.add_parser("delete", help="Delete a user (Admin)")
+    user_del_parser.add_argument("user_id", help="Target user ID")
+
+    # user logout
+    user_subparsers.add_parser("logout", help="Log out and clear cached token")
+
     args = parser.parse_args()
 
     if not args.command or args.command == "dashboard":
@@ -359,6 +448,111 @@ def main():
     elif args.command == "replay":
         res = api_post("/api/replay_session", {"session_id": args.session_id})
         print(json.dumps(res, indent=2))
+    elif args.command == "user":
+        handle_user_cli(args)
+
+
+def print_user_table(users):
+    print("\033[1;36m" + "─" * 92 + "\033[0m")
+    print(f"\033[1;37m{'USER ID':<16} {'USERNAME':<16} {'ROLE':<12} {'STATUS':<12} {'EMAIL':<30}\033[0m")
+    print("\033[1;36m" + "─" * 92 + "\033[0m")
+    for u in users:
+        role = u.get("role", "viewer").upper()
+        role_color = "\033[1;31m" if role == "ADMIN" else "\033[1;33m" if role == "OPERATOR" else "\033[1;36m"
+        status = u.get("status", "active").upper()
+        status_color = "\033[1;32m" if status == "ACTIVE" else "\033[1;31m"
+        print(f"{u.get('user_id', ''):<16} {u.get('username', ''):<16} {role_color}{role:<12}\033[0m {status_color}{status:<12}\033[0m {u.get('email', ''):<30}")
+    print("\033[1;36m" + "─" * 92 + "\033[0m\n")
+
+
+def handle_user_cli(args):
+    action = getattr(args, "user_action", None)
+    if not action:
+        print("Usage: agent-mesh user {login,whoami,register,list,update,delete,logout} ...")
+        return
+
+    if action == "login":
+        password = args.password
+        if not password:
+            password = getpass.getpass(f"Password for [{args.username}]: ")
+        res = api_post("/api/auth/login", {"username": args.username, "password": password})
+        if res.get("success"):
+            token = res.get("token")
+            save_token(token)
+            u = res.get("user", {})
+            print(f"\033[1;32m✔ Authenticated successfully as [{u.get('username')}] ({u.get('role', '').upper()})\033[0m")
+            print(f"  Token cached to: {AUTH_TOKEN_FILE}")
+        else:
+            print(f"\033[1;31m✘ Login failed:\033[0m {res.get('error', 'Unknown error')}")
+
+    elif action == "whoami":
+        res = api_get("/api/auth/me")
+        if res.get("success"):
+            u = res.get("user", {})
+            role = u.get("role", "").upper()
+            role_color = "\033[1;31m" if role == "ADMIN" else "\033[1;33m" if role == "OPERATOR" else "\033[1;36m"
+            print("\033[1;34m⚡ Active User Session:\033[0m")
+            print(f"  • User ID  : {u.get('user_id')}")
+            print(f"  • Username : \033[1;37m{u.get('username')}\033[0m")
+            print(f"  • Email    : {u.get('email')}")
+            print(f"  • Role     : {role_color}{role}\033[0m")
+            print(f"  • Status   : \033[1;32m{u.get('status', '').upper()}\033[0m")
+        else:
+            print(f"\033[1;33mNot authenticated or session expired.\033[0m Run `agent-mesh user login <username>`.")
+
+    elif action == "register":
+        payload = {
+            "username": args.username,
+            "email": args.email,
+            "password": args.password,
+            "role": args.role
+        }
+        res = api_post("/api/auth/register", payload)
+        if res.get("success"):
+            u = res.get("user", {})
+            print(f"\033[1;32m✔ User created successfully:\033[0m ID: {u.get('user_id')} | Username: {u.get('username')} | Role: {u.get('role')}")
+        else:
+            print(f"\033[1;31m✘ Registration failed:\033[0m {res.get('error')}")
+
+    elif action == "list":
+        res = api_get("/api/users")
+        if res.get("success"):
+            users = res.get("users", [])
+            print(f"\n\033[1;34m⚡ Registered Users ({len(users)}):\033[0m")
+            print_user_table(users)
+        else:
+            print(f"\033[1;31m✘ Failed to list users:\033[0m {res.get('error')}")
+
+    elif action == "update":
+        updates = {}
+        if args.email:
+            updates["email"] = args.email
+        if args.role:
+            updates["role"] = args.role
+        if args.status:
+            updates["status"] = args.status
+        if args.password:
+            updates["password"] = args.password
+        if not updates:
+            print("\033[1;33mNo updates specified. Use --email, --role, --status, or --password.\033[0m")
+            return
+        res = api_post("/api/users/update", {"user_id": args.user_id, "updates": updates})
+        if res.get("success"):
+            u = res.get("user", {})
+            print(f"\033[1;32m✔ User {args.user_id} updated successfully:\033[0m {u}")
+        else:
+            print(f"\033[1;31m✘ Update failed:\033[0m {res.get('error')}")
+
+    elif action == "delete":
+        res = api_post("/api/users/delete", {"user_id": args.user_id})
+        if res.get("success"):
+            print(f"\033[1;32m✔ {res.get('message', 'User deleted')}\033[0m")
+        else:
+            print(f"\033[1;31m✘ Delete failed:\033[0m {res.get('error')}")
+
+    elif action == "logout":
+        clear_saved_token()
+        print("\033[1;32m✔ Logged out. Session token cleared.\033[0m")
 
 
 if __name__ == "__main__":
